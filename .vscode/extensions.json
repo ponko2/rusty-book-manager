@@ -1,6 +1,7 @@
 {
   "recommendations": [
     "EditorConfig.EditorConfig",
+    "mkhl.direnv",
     "rust-lang.rust-analyzer",
     "tamasfe.even-better-toml"
   ]
