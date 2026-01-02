@@ -90,7 +90,7 @@ export default function UpdateUserPassword() {
                   variant={"ghost"}
                   onClick={() =>
                     setShowCurrentPassword(
-                      (showCurrentPassword) => !showCurrentPassword
+                      (showCurrentPassword) => !showCurrentPassword,
                     )
                   }
                 >

@@ -1,8 +1,5 @@
 import useSWR from "swr";
-import {
-  Book,
-  PaginatedList,
-} from "../_types/book";
+import { Book, PaginatedList } from "../_types/book";
 import useLocalStorageState from "use-local-storage-state";
 import { ACCESS_TOKEN_KEY } from "../_components/auth";
 import { fetchWithToken } from "../_lib/client";
@@ -10,7 +7,7 @@ import { fetchWithToken } from "../_lib/client";
 type BooksQuery = {
   limit: number;
   offset: number;
-}
+};
 
 export const useBooks = (query: BooksQuery) => {
   const [accessToken] = useLocalStorageState(ACCESS_TOKEN_KEY);
