@@ -22,14 +22,18 @@ services:
       JAEGER_HOST: ${JAEGER_HOST}
       JAEGER_PORT: ${JAEGER_PORT}
     depends_on:
-      - redis
-      - postgres
-
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
   redis:
     image: redis:alpine
     ports:
       - ${REDIS_PORT_OUTER}:${REDIS_PORT_INNER}
-
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      start_period: 30s
+      start_interval: 1s
   postgres:
     image: postgres:15
     command: postgres -c log_destination=stderr -c log_statement=all -c log_connections=on -c log_disconnections=on
@@ -42,12 +46,9 @@ services:
       POSTGRES_PASSWORD: ${DATABASE_PASSWORD}
       POSTGRES_DB: ${DATABASE_NAME}
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "${DATABASE_USERNAME}"]
-      interval: 1m30s
-      timeout: 30s
-      retries: 5
+      test: [CMD, pg_isready, -U, "${DATABASE_USERNAME}"]
       start_period: 30s
-
+      start_interval: 1s
 volumes:
   db:
     driver: local
