@@ -3,7 +3,8 @@ applications:
   - frontend:
       phases:
         preBuild:
-          commands: ["npm ci --cache .npm --prefer-offline"]
+          commands:
+            - npm ci --cache .npm --prefer-offline
         build:
           commands:
             - echo "API_ROOT_PORT=$API_ROOT_PORT" >> .env
@@ -16,6 +17,6 @@ applications:
           - "**/*"
       cache:
         paths:
-          - ".next/cache/**/*"
-          - ".npm/**/*"
+          - .next/cache/**/*
+          - .npm/**/*
     appRoot: frontend
