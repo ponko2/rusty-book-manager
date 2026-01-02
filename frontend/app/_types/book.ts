@@ -38,4 +38,3 @@ export type Checkout = {
   returnedAt?: string;
   book: Book;
 };
-

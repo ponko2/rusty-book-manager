@@ -42,5 +42,3 @@ export const useBookCheckouts = (bookId: string) => {
     isError: error,
   };
 };
-
-

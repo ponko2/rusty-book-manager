@@ -83,4 +83,3 @@ resource "aws_apprunner_vpc_connector" "backend_book_manager" {
   subnets            = var.book_app_db_subnet_ids
   security_groups    = [var.book_app_vpc_connector_sg_id]
 }
-

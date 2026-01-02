@@ -21,4 +21,3 @@ variable "book_app_codebuild_security_group_id" {
 variable "book_app_redis_subnet_group_name" {
   type = string
 }
-
