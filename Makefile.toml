@@ -58,7 +58,7 @@ args = ["run", "${@}"]
 extend = "set-env-docker"
 dependencies = ["before-build", "compose-build-app"]
 command = "docker"
-args = ["compose", "up", "-d", "app"]
+args = ["compose", "up", "-d", "--wait", "app"]
 
 [tasks.logs]
 extend = "set-env-docker"
@@ -186,12 +186,12 @@ args = ["compose", "${@}"]
 [tasks.compose-up-db]
 extend = "set-env-docker"
 command = "docker"
-args = ["compose", "up", "-d", "postgres"]
+args = ["compose", "up", "-d", "--wait", "postgres"]
 
 [tasks.compose-up-redis]
 extend = "set-env-docker"
 command = "docker"
-args = ["compose", "up", "-d", "redis"]
+args = ["compose", "up", "-d", "--wait", "redis"]
 
 [tasks.compose-down]
 extend = "set-env-docker"
