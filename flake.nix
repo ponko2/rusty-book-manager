@@ -35,6 +35,7 @@
                 sha256 = "sha256-sqSWJDUxc+zaz1nBWMAJKTAGBuGWP25GCftIOlCEAtA=";
               })
               cargo-make
+              cargo-nextest
               editorconfig-checker
               nodejs
               postgresql
