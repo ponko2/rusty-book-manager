@@ -46,6 +46,7 @@
               })
               cargo-machete
               cargo-make
+              cargo-nextest
               editorconfig-checker
               nodejs
               postgresql

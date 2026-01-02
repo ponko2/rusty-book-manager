@@ -3,4 +3,19 @@ name = "rusty-book-manager"
 version = "0.1.0"
 edition = "2024"
 
+[[bin]]
+name = "app"
+path = "src/main.rs"
+
 [dependencies]
+anyhow = "1.0.75"
+axum = { version = "0.7.5", features = ["macros"] }
+sqlx = { version = "0.7.3", features = [
+  "chrono",
+  "macros",
+  "migrate",
+  "postgres",
+  "runtime-tokio",
+  "uuid",
+] }
+tokio = { version = "1.37.0", features = ["full"] }
