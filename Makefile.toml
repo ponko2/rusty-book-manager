@@ -33,21 +33,19 @@ REDIS_PORT = "${REDIS_PORT_OUTER}"
 JAEGER_HOST = "localhost"
 JAEGER_PORT = 6831
 
-
 [tasks.before-build]
-run_task = [
-    { name = [
-        "compose-up-db",
-        "compose-up-redis",
-    ] },
-]
+run_task = [{ name = ["compose-up-db", "compose-up-redis"] }]
 
 [tasks.compose-build-app]
 extend = "set-env-local"
 command = "docker"
 args = [
-  "compose", "build", "app",
-  "--build-arg", "BUILDKIT_INLINE_CACHE=1", "${@}"
+  "compose",
+  "build",
+  "app",
+  "--build-arg",
+  "BUILDKIT_INLINE_CACHE=1",
+  "${@}",
 ]
 
 [tasks.run]
@@ -80,7 +78,6 @@ dependencies = ["before-build"]
 command = "cargo"
 args = ["check"]
 
-
 ### Development
 
 [tasks.watch]
@@ -102,12 +99,18 @@ args = ["clippy", "--all", "--all-targets", "${@}"]
 [tasks.test]
 extend = "set-env-local"
 install_crate = { crate_name = "cargo-nextest", binary = "cargo", test_arg = [
-  "nextest", "--help",
+  "nextest",
+  "--help",
 ] }
 command = "cargo"
 args = [
-  "nextest", "run", "--workspace",
-  "--status-level", "all", "--test-threads=1", "--no-tests=pass"
+  "nextest",
+  "run",
+  "--workspace",
+  "--status-level",
+  "all",
+  "--test-threads=1",
+  "--no-tests=pass",
 ]
 
 [tasks.clippy-ci]
@@ -120,7 +123,6 @@ args = ["clippy", "--", "--no-deps", "-Dwarnings"]
 dependencies = ["before-build"]
 run_task = "test"
 
-
 ### Migration
 
 [tasks.migrate]
@@ -129,7 +131,7 @@ install_crate = { crate_name = "sqlx-cli", binary = "sqlx", test_arg = "--help",
 script = '''
 #!/bin/bash
 until sqlx migrate run --source adapter/migrations; do
-    sleep 1
+  sleep 1
 done
 '''
 
@@ -143,23 +145,36 @@ args = ["${@}", "--source", "adapter/migrations"]
 extend = "set-env-local"
 command = "docker"
 args = [
-  "run", "-it", "--rm",
-  "--network", "host",
-  "-v", "${PWD}:/work",
-  "postgres:15", "psql", "${DATABASE_URL}", "${@}"
+  "run",
+  "-it",
+  "--rm",
+  "--network",
+  "host",
+  "-v",
+  "${PWD}:/work",
+  "postgres:15",
+  "psql",
+  "${DATABASE_URL}",
+  "${@}",
 ]
 
 [tasks.initial-setup]
 extend = "set-env-local"
 command = "docker"
 args = [
-  "run", "-it", "--rm",
-  "--network", "host",
-  "-v", "${PWD}:/work",
-  "postgres:15", "psql", "${DATABASE_URL}",
-  "-f", "/work/data/initial_setup.sql"
+  "run",
+  "-it",
+  "--rm",
+  "--network",
+  "host",
+  "-v",
+  "${PWD}:/work",
+  "postgres:15",
+  "psql",
+  "${DATABASE_URL}",
+  "-f",
+  "/work/data/initial_setup.sql",
 ]
-
 
 ### Docker Compose
 
