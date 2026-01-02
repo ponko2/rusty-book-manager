@@ -16,7 +16,7 @@ resource "aws_ecr_lifecycle_policy" "backend_repository_lifecycle" {
                 "tagStatus": "untagged",
                 "countType": "sinceImagePushed",
                 "countUnit": "days",
-                "countNumber":7 
+                "countNumber":7
             },
             "action": {
                 "type": "expire"
