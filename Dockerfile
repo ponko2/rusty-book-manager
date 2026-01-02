@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 
-ARG RUST_VERSION=1.84.0
+ARG RUST_VERSION=1.92.0
 ARG APP_NAME=app
 
-FROM rust:${RUST_VERSION}-slim-bookworm AS build
+FROM rust:${RUST_VERSION}-slim-trixie AS build
 ARG APP_NAME
 ARG DATABASE_URL
 WORKDIR /app
@@ -20,12 +20,10 @@ RUN --mount=type=bind,source=src,target=src \
   cargo build --release --locked; \
   cp ./target/release/$APP_NAME /bin/server
 
-FROM debian:bookworm-slim AS final
+FROM debian:trixie-slim AS final
 
-RUN adduser \
-  --disabled-password \
-  --gecos "" \
-  --home "/nonexistent" \
+RUN useradd \
+  --home-dir "/nonexistent" \
   --shell "/sbin/nologin" \
   --no-create-home \
   --uid "1001" \
