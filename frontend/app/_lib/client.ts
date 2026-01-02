@@ -12,7 +12,8 @@ export const fetchWithToken = async (
 
 const fetcher = async (destination: string, init: RequestInit) => {
   const res = await fetch(
-    `${process.env.API_ROOT_PROTOCOL ?? "http"}://${process.env.API_ROOT_URL?.replace(/\/$/g, "") ?? "localhost"
+    `${process.env.API_ROOT_PROTOCOL ?? "http"}://${
+      process.env.API_ROOT_URL?.replace(/\/$/g, "") ?? "localhost"
     }:${process.env.API_ROOT_PORT ?? "8080"}/${destination.replace(
       /^\//g,
       "",

@@ -33,11 +33,11 @@ export default function EditBook({
       isbn: "",
       author: "",
       description: "",
-    }
+    },
   );
 
   const handleChange = (
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
   ) => {
     const { name, value } = e.target;
     setInput({ ...input, [name]: value });
