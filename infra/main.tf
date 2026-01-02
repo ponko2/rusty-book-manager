@@ -77,4 +77,3 @@ module "codebuild" {
   book_app_codebuild_security_group_id = module.network.book_app_codebuild_security_group_id
   book_app_service_role_arn            = module.iam.codebuild_service_role_arn
 }
-

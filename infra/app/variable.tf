@@ -21,4 +21,3 @@ variable "apprunner_instance_role_arn" {
 variable "apprunner_ecr_access_role_arn" {
   type = string
 }
-
