@@ -11,7 +11,7 @@ RUN cargo build --release
 
 FROM debian:bookworm-slim
 WORKDIR /app
-RUN adduser book && chown -R book /app
+RUN groupadd -r book && useradd -r -g book book && chown -R book:book /app
 USER book
 COPY --from=builder ./app/target/release/app ./target/release/app
 
