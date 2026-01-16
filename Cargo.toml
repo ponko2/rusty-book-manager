@@ -5,11 +5,21 @@ edition = "2024"
 
 [[bin]]
 name = "app"
-path = "src/main.rs"
+path = "src/bin/app.rs"
 
-[dependencies]
+[workspace]
+members = ["adapter", "api", "kernel", "registry", "shared"]
+
+[workspace.dependencies]
+adapter = { path = "./adapter" }
 anyhow = "1.0.75"
+api = { path = "./api" }
+async-trait = "0.1.74"
 axum = { version = "0.7.5", features = ["macros"] }
+derive-new = "0.6.0"
+kernel = { path = "./kernel" }
+registry = { path = "./registry" }
+shared = { path = "./shared" }
 sqlx = { version = "0.7.3", features = [
   "chrono",
   "macros",
@@ -19,3 +29,12 @@ sqlx = { version = "0.7.3", features = [
   "uuid",
 ] }
 tokio = { version = "1.37.0", features = ["full"] }
+
+[dependencies]
+adapter.workspace = true
+anyhow.workspace = true
+api.workspace = true
+axum.workspace = true
+registry.workspace = true
+shared.workspace = true
+tokio.workspace = true
