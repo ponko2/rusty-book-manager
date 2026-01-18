@@ -9,6 +9,7 @@ publish.workspace = true
 async-trait.workspace = true
 chrono.workspace = true
 derive-new.workspace = true
+mockall.workspace = true
 serde.workspace = true
 shared.workspace = true
 sqlx.workspace = true

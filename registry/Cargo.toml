@@ -8,4 +8,5 @@ publish.workspace = true
 [dependencies]
 adapter.workspace = true
 kernel.workspace = true
+mockall.workspace = true
 shared.workspace = true
