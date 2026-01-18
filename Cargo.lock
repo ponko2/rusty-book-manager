@@ -6,11 +6,13 @@ version = 4
 name = "adapter"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "derive-new",
  "kernel",
  "shared",
  "sqlx",
+ "uuid",
 ]
 
 [[package]]
@@ -51,8 +53,15 @@ checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
 name = "api"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "axum",
+ "derive-new",
+ "kernel",
  "registry",
+ "serde",
+ "shared",
+ "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -825,7 +834,10 @@ dependencies = [
 name = "kernel"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
+ "shared",
+ "uuid",
 ]
 
 [[package]]
@@ -1917,7 +1929,9 @@ version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2e054861b4bd027cd373e18e8d8d8e6548085000e41290d95ce0c373a654b4a"
 dependencies = [
+ "getrandom 0.3.4",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 
