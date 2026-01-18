@@ -16,6 +16,9 @@ registry.workspace = true
 serde.workspace = true
 shared.workspace = true
 strum.workspace = true
+tokio-stream.workspace = true
+tokio.workspace = true
+tower.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
