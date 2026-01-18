@@ -6,11 +6,15 @@ license.workspace = true
 publish.workspace = true
 
 [dependencies]
+axum-extra.workspace = true
 axum.workspace = true
+derive-new.workspace = true
+garde.workspace = true
 kernel.workspace = true
 registry.workspace = true
 serde.workspace = true
 shared.workspace = true
+strum.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
