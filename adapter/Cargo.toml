@@ -7,8 +7,10 @@ publish.workspace = true
 
 [dependencies]
 async-trait.workspace = true
+bcrypt.workspace = true
 derive-new.workspace = true
 kernel.workspace = true
+redis.workspace = true
 shared.workspace = true
 sqlx.workspace = true
 
