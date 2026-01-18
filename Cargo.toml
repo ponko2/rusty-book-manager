@@ -1,7 +1,9 @@
 [package]
 name = "rusty-book-manager"
 version = "0.1.0"
-edition = "2024"
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
 
 [[bin]]
 name = "app"
@@ -10,14 +12,23 @@ path = "src/bin/app.rs"
 [workspace]
 members = ["adapter", "api", "kernel", "registry", "shared"]
 
+[workspace.package]
+edition = "2024"
+license = "MIT"
+publish = false
+
 [workspace.dependencies]
 adapter = { path = "./adapter" }
 anyhow = "1.0.75"
 api = { path = "./api" }
 async-trait = "0.1.74"
 axum = { version = "0.7.5", features = ["macros"] }
+bcrypt = "0.15.0"
 derive-new = "0.6.0"
+garde = { version = "0.18.0", features = ["derive", "email"] }
 kernel = { path = "./kernel" }
+mockall = "0.11.4"
+redis = { version = "0.25.3", features = ["tokio-rustls-comp"] }
 registry = { path = "./registry" }
 serde = { version = "1.0.174", features = ["derive"] }
 shared = { path = "./shared" }
@@ -29,8 +40,10 @@ sqlx = { version = "0.7.3", features = [
   "runtime-tokio",
   "uuid",
 ] }
+strum = { version = "0.26.2", features = ["derive"] }
 thiserror = "1.0.44"
 tokio = { version = "1.37.0", features = ["full"] }
+tracing = { version = "0.1.37", features = ["log"] }
 uuid = { version = "1.4.0", features = ["v4", "serde"] }
 
 [dependencies]
@@ -41,3 +54,9 @@ axum.workspace = true
 registry.workspace = true
 shared.workspace = true
 tokio.workspace = true
+tower-http = { version = "0.5.0", features = ["cors", "trace"] }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing.workspace = true
+
+[profile.dev.package.sqlx-macros]
+opt-level = 3
