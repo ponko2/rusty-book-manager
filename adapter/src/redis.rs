@@ -38,3 +38,76 @@ impl RedisClient {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::error::AppError;
+
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct TestContent {
+        pub name: String,
+    }
+
+    pub struct TestContentKey(String);
+
+    impl RedisKey for TestContentKey {
+        type Value = TestContent;
+        fn inner(&self) -> String {
+            self.0.to_string()
+        }
+    }
+
+    impl TryFrom<String> for TestContent {
+        type Error = AppError;
+
+        fn try_from(s: String) -> Result<Self, Self::Error> {
+            Ok(Self { name: s })
+        }
+    }
+
+    impl RedisValue for TestContent {
+        fn inner(&self) -> String {
+            self.name.to_string()
+        }
+    }
+
+    #[sqlx::test]
+    async fn test_con() -> anyhow::Result<()> {
+        let config = RedisConfig {
+            host: std::env::var("REDIS_HOST").unwrap(),
+            port: std::env::var("REDIS_PORT").unwrap().parse().unwrap(),
+        };
+        let client = RedisClient::new(&config)?;
+
+        let res_nonexist = client.get(&TestContentKey("redis:key".to_string())).await?;
+        assert!(res_nonexist.is_none());
+
+        client
+            .set_ex(
+                &TestContentKey("redis:key".to_string()),
+                &TestContent {
+                    name: "bbb".to_string(),
+                },
+                1000,
+            )
+            .await?;
+
+        let res = client.get(&TestContentKey("redis:key".to_string())).await?;
+        assert_eq!(
+            res,
+            Some(TestContent {
+                name: "bbb".to_string()
+            })
+        );
+
+        client
+            .delete(&TestContentKey("redis:key".to_string()))
+            .await?;
+
+        let res_nonexist = client.get(&TestContentKey("redis:key".to_string())).await?;
+        assert!(res_nonexist.is_none());
+
+        Ok(())
+    }
+}
