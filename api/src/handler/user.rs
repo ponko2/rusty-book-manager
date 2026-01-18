@@ -98,3 +98,16 @@ pub async fn change_password(
 
     Ok(StatusCode::OK)
 }
+
+use crate::model::checkout::CheckoutsResponse;
+pub async fn get_checkouts(
+    user: AuthorizedUser,
+    State(registry): State<AppRegistry>,
+) -> AppResult<Json<CheckoutsResponse>> {
+    registry
+        .checkout_repository()
+        .find_unreturned_by_user_id(user.id())
+        .await
+        .map(CheckoutsResponse::from)
+        .map(Json)
+}
