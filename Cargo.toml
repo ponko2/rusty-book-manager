@@ -25,6 +25,7 @@ async-trait = "0.1.74"
 axum = { version = "0.7.5", features = ["macros"] }
 axum-extra = { version = "0.9.3", features = ["typed-header"] }
 bcrypt = "0.15.0"
+chrono = { version = "0.4.26", default-features = false, features = ["serde"] }
 derive-new = "0.6.0"
 garde = { version = "0.18.0", features = ["derive", "email"] }
 kernel = { path = "./kernel" }
