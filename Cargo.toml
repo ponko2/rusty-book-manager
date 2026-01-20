@@ -35,7 +35,7 @@ redis = { version = "0.25.3", features = ["tokio-rustls-comp"] }
 registry = { path = "./registry" }
 serde = { version = "1.0.174", features = ["derive"] }
 shared = { path = "./shared" }
-sqlx = { version = "0.7.3", features = [
+sqlx = { version = "0.8.1", features = [
   "chrono",
   "macros",
   "migrate",
