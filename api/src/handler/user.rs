@@ -18,6 +18,12 @@ use kernel::model::{id::UserId, user::event::DeleteUser};
 use registry::AppRegistry;
 use shared::error::{AppError, AppResult};
 
+#[tracing::instrument(
+    skip(user, registry, req),
+    fields(
+        user_id = %user.user.id.to_string(),
+    )
+)]
 pub async fn register_user(
     user: AuthorizedUser,
     State(registry): State<AppRegistry>,
@@ -33,6 +39,15 @@ pub async fn register_user(
     Ok(Json(registered_user.into()))
 }
 
+#[cfg_attr(
+    debug_assertions,
+    utoipa::path(get, path="/api/v1/users",
+        responses(
+            (status = 200, description = "ユーザーの一覧を取得できた場合。"),
+            (status = 500, description = "サーバーサイドエラーが発生した場合。")
+        )
+    )
+)]
 pub async fn list_users(
     _user: AuthorizedUser,
     State(registry): State<AppRegistry>,
@@ -48,6 +63,12 @@ pub async fn list_users(
     Ok(Json(UsersResponse { items }))
 }
 
+#[tracing::instrument(
+    skip(user, registry),
+    fields(
+        user_id = %user.user.id.to_string(),
+    )
+)]
 pub async fn delete_user(
     user: AuthorizedUser,
     Path(user_id): Path<UserId>,
@@ -83,10 +104,41 @@ pub async fn change_role(
     Ok(StatusCode::OK)
 }
 
+#[cfg_attr(
+    debug_assertions,
+    utoipa::path(get, path="/api/v1/users/me",
+        responses(
+            (status = 200, description = "現在ログイン中のユーザー情報の取得に成功した場合。")
+        )
+    )
+)]
+#[tracing::instrument(
+    skip(user),
+    fields(
+        user_id = %user.user.id.to_string(),
+        user_name = %user.user.name
+    )
+)]
 pub async fn get_current_user(user: AuthorizedUser) -> Json<UserResponse> {
     Json(UserResponse::from(user.user))
 }
 
+#[cfg_attr(
+    debug_assertions,
+    utoipa::path(get, path="/api/v1/users/me/password",
+        responses(
+            (status = 200, description = "パスワードの変更に成功した場合。"),
+            (status = 400, description = "リクエストの形式に誤りがある場合。"),
+            (status = 500, description = "サーバーサイドエラーが発生した場合。")
+        )
+    )
+)]
+#[tracing::instrument(
+    skip(user, registry, req),
+    fields(
+        user_id = %user.user.id.to_string(),
+    )
+)]
 pub async fn change_password(
     user: AuthorizedUser,
     State(registry): State<AppRegistry>,
@@ -102,6 +154,21 @@ pub async fn change_password(
     Ok(StatusCode::OK)
 }
 
+#[cfg_attr(
+    debug_assertions,
+    utoipa::path(get, path="/api/v1/users/me/checkouts",
+        responses(
+            (status = 200, description = "貸し出し中の書籍を取得できた場合。"),
+            (status = 500, description = "サーバーサイドエラーが発生した場合。")
+        )
+    )
+)]
+#[tracing::instrument(
+    skip(user, registry),
+    fields(
+        user_id = %user.user.id.to_string(),
+    )
+)]
 pub async fn get_checkouts(
     user: AuthorizedUser,
     State(registry): State<AppRegistry>,
