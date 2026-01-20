@@ -11,6 +11,7 @@ macro_rules! define_id {
             serde::Serialize,
             sqlx::Type,
         )]
+        #[cfg_attr(debug_assertions, derive(utoipa::ToSchema))]
         #[serde(into = "String")]
         #[sqlx(transparent)]
         pub struct $id_type(uuid::Uuid);
@@ -60,3 +61,18 @@ macro_rules! define_id {
 define_id!(UserId);
 define_id!(BookId);
 define_id!(CheckoutId);
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::error::AppError;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_from_str() -> anyhow::Result<()> {
+        let s = "aaa";
+        let res = UserId::from_str(s);
+        assert!(matches!(res, Err(AppError::ConvertToUuidError(_))));
+        Ok(())
+    }
+}
