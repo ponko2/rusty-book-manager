@@ -19,6 +19,8 @@ strum.workspace = true
 tokio-stream.workspace = true
 tokio.workspace = true
 tower.workspace = true
+tracing.workspace = true
+utoipa.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

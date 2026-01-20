@@ -34,7 +34,14 @@ JAEGER_HOST = "localhost"
 JAEGER_PORT = 6831
 
 [tasks.before-build]
-run_task = [{ name = ["compose-up-db", "migrate", "compose-up-redis"] }]
+run_task = [
+  { name = [
+    "compose-up-db",
+    "migrate",
+    "compose-up-redis",
+    "compose-up-jaeger",
+  ] },
+]
 
 [tasks.compose-build-app]
 extend = "set-env-local"
@@ -110,7 +117,6 @@ args = [
   "--status-level",
   "all",
   "--test-threads=1",
-  "--no-tests=pass",
 ]
 
 [tasks.clippy-ci]
@@ -192,6 +198,11 @@ args = ["compose", "up", "-d", "--wait", "postgres"]
 extend = "set-env-docker"
 command = "docker"
 args = ["compose", "up", "-d", "--wait", "redis"]
+
+[tasks.compose-up-jaeger]
+extend = "set-env-docker"
+command = "docker"
+args = ["compose", "up", "-d", "--wait", "jaeger"]
 
 [tasks.compose-down]
 extend = "set-env-docker"
