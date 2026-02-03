@@ -35,7 +35,7 @@ redis = { version = "0.25.3", features = ["tokio-rustls-comp"] }
 registry = { path = "./registry" }
 serde = { version = "1.0.174", features = ["derive"] }
 shared = { path = "./shared" }
-sqlx = { version = "0.7.3", features = [
+sqlx = { version = "0.8.1", features = [
   "chrono",
   "macros",
   "migrate",
@@ -45,7 +45,7 @@ sqlx = { version = "0.7.3", features = [
 ] }
 strum = { version = "0.26.2", features = ["derive"] }
 thiserror = "1.0.44"
-tokio = { version = "1.37.0", features = ["full"] }
+tokio = { version = "1.49.0", features = ["full"] }
 tokio-stream = "0.1.14"
 tower = { version = "0.4.13", features = ["util"] }
 tracing = { version = "0.1.37", features = ["log"] }
