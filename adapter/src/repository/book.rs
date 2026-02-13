@@ -1,9 +1,8 @@
 use crate::database::{
-    ConnectionPool,
+    ConnectionSource,
     model::book::{BookCheckoutRow, BookRow, PaginatedBookRow},
 };
 use async_trait::async_trait;
-use derive_new::new;
 use kernel::{
     model::{
         book::{
@@ -18,14 +17,22 @@ use kernel::{
 use shared::error::{AppError, AppResult};
 use std::collections::HashMap;
 
-#[derive(new)]
-pub struct BookRepositoryImpl {
-    db: ConnectionPool,
+pub struct BookRepositoryImpl<'t, 'm> {
+    source: ConnectionSource<'t, 'm>,
+}
+
+impl<'t, 'm> BookRepositoryImpl<'t, 'm> {
+    pub fn new(source: impl Into<ConnectionSource<'t, 'm>>) -> Self {
+        Self {
+            source: source.into(),
+        }
+    }
 }
 
 #[async_trait]
-impl BookRepository for BookRepositoryImpl {
+impl<'t, 'm> BookRepository for BookRepositoryImpl<'t, 'm> {
     async fn create(&self, event: CreateBook, user_id: UserId) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
         sqlx::query!(
             r#"
                 INSERT INTO books (title, author, isbn, description, user_id)
@@ -37,13 +44,14 @@ impl BookRepository for BookRepositoryImpl {
             event.description,
             user_id as _
         )
-        .execute(self.db.inner_ref())
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
         Ok(())
     }
 
     async fn delete(&self, event: DeleteBook) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query!(
             r#"
                 DELETE FROM books
@@ -53,7 +61,7 @@ impl BookRepository for BookRepositoryImpl {
             event.book_id as _,
             event.requested_user as _
         )
-        .execute(self.db.inner_ref())
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
 
@@ -65,6 +73,7 @@ impl BookRepository for BookRepositoryImpl {
     }
 
     async fn find_all(&self, options: BookListOptions) -> AppResult<PaginatedList<Book>> {
+        let mut conn = self.source.acquire().await?;
         let BookListOptions { limit, offset } = options;
         let rows: Vec<PaginatedBookRow> = sqlx::query_as!(
             PaginatedBookRow,
@@ -80,7 +89,7 @@ impl BookRepository for BookRepositoryImpl {
             limit,
             offset,
         )
-        .fetch_all(self.db.inner_ref())
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
 
@@ -105,7 +114,7 @@ impl BookRepository for BookRepositoryImpl {
             "#,
             &book_ids as _,
         )
-        .fetch_all(self.db.inner_ref())
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
 
@@ -128,6 +137,7 @@ impl BookRepository for BookRepositoryImpl {
     }
 
     async fn find_by_id(&self, book_id: BookId) -> AppResult<Option<Book>> {
+        let mut conn = self.source.acquire().await?;
         let row: Option<BookRow> = sqlx::query_as!(
             BookRow,
             r#"
@@ -145,7 +155,7 @@ impl BookRepository for BookRepositoryImpl {
             "#,
             book_id as _,
         )
-        .fetch_optional(self.db.inner_ref())
+        .fetch_optional(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
 
@@ -159,6 +169,7 @@ impl BookRepository for BookRepositoryImpl {
     }
 
     async fn update(&self, event: UpdateBook) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query!(
             r#"
                 UPDATE books
@@ -177,7 +188,7 @@ impl BookRepository for BookRepositoryImpl {
             event.book_id as _,
             event.requested_user as _
         )
-        .execute(self.db.inner_ref())
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
         if res.rows_affected() < 1 {
@@ -188,8 +199,9 @@ impl BookRepository for BookRepositoryImpl {
     }
 }
 
-impl BookRepositoryImpl {
+impl<'t, 'm> BookRepositoryImpl<'t, 'm> {
     async fn find_checkouts(&self, book_ids: &[BookId]) -> AppResult<HashMap<BookId, Checkout>> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query_as!(
             BookCheckoutRow,
             r#"
@@ -206,7 +218,7 @@ impl BookRepositoryImpl {
             "#,
             book_ids as _,
         )
-        .fetch_all(self.db.inner_ref())
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?
         .into_iter()
@@ -220,8 +232,11 @@ impl BookRepositoryImpl {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::repository::{
-        book::BookRepositoryImpl, checkout::CheckoutRepositoryImpl, user::UserRepositoryImpl,
+    use crate::{
+        database::ConnectionPool,
+        redis::RedisClient,
+        repository::{book::BookRepositoryImpl, user::UserRepositoryImpl},
+        unit_of_work::UnitOfWorkScopeImpl,
     };
     use chrono::Utc;
     use kernel::{
@@ -230,17 +245,19 @@ mod tests {
             id::UserId,
             user::event::CreateUser,
         },
-        repository::{checkout::CheckoutRepository, user::UserRepository},
+        repository::user::UserRepository,
+        use_case::checkout::{CheckoutUseCase, CheckoutUseCaseImpl},
     };
-    use std::str::FromStr;
+    use shared::config::RedisConfig;
+    use std::{str::FromStr, sync::Arc};
 
     #[sqlx::test]
-    async fn test_register_book(pool: sqlx::PgPool) -> anyhow::Result<()> {
+    async fn test_register_book(source: sqlx::PgPool) -> anyhow::Result<()> {
         sqlx::query!(r#"INSERT INTO roles(name) VALUES ('Admin'), ('User');"#)
-            .execute(&pool)
+            .execute(&source)
             .await?;
-        let user_repo = UserRepositoryImpl::new(ConnectionPool::new(pool.clone()));
-        let repo = BookRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+        let user_repo = UserRepositoryImpl::new(source.clone());
+        let repo = BookRepositoryImpl::new(source.clone());
         let user = user_repo
             .create(CreateUser {
                 name: "Test User".into(),
@@ -288,7 +305,7 @@ mod tests {
 
     #[sqlx::test(fixtures("common", "book"))]
     async fn test_update_book(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let repo = BookRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+        let repo = BookRepositoryImpl::new(pool);
         let book_id = BookId::from_str("9890736e-a4e4-461a-a77d-eac3517ef11b").unwrap();
         let book = repo.find_by_id(book_id).await?.unwrap();
         const NEW_AUTHOR: &str = "更新後の著者名";
@@ -312,7 +329,7 @@ mod tests {
 
     #[sqlx::test(fixtures("common", "book"))]
     async fn test_delete_book(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let repo = BookRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+        let repo = BookRepositoryImpl::new(pool);
         let book_id = BookId::from_str("9890736e-a4e4-461a-a77d-eac3517ef11b")?;
 
         repo.delete(DeleteBook {
@@ -329,7 +346,7 @@ mod tests {
 
     #[sqlx::test(fixtures("common", "book_list"))]
     async fn test_list_filters(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let repo = BookRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+        let repo = BookRepositoryImpl::new(pool);
 
         const LEN: i64 = 50;
 
@@ -370,9 +387,16 @@ mod tests {
     }
 
     #[sqlx::test(fixtures("common", "book_checkout"))]
-    async fn test_book_checkout(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let book_repo = BookRepositoryImpl::new(ConnectionPool::new(pool.clone()));
-        let checkout_repo = CheckoutRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+    async fn test_book_checkout(source: sqlx::PgPool) -> anyhow::Result<()> {
+        let book_repo = BookRepositoryImpl::new(source.clone());
+        let checkout_use_case = CheckoutUseCaseImpl::new(Arc::new(UnitOfWorkScopeImpl::new(
+            Arc::new(ConnectionPool::from(source.clone())),
+            Arc::new(RedisClient::new(&RedisConfig {
+                host: std::env::var("REDIS_HOST")?,
+                port: std::env::var("REDIS_PORT")?.parse::<u16>()?,
+            })?),
+            std::env::var("AUTH_TOKEN_TTL")?.parse::<u64>()?,
+        )));
 
         let user_id1 = UserId::from_str("9582f9de-0fd1-4892-b20c-70139a7eb95b").unwrap();
         let user_id2 = UserId::from_str("050afe56-c3da-4448-8e4d-6f44007d2ca5").unwrap();
@@ -390,8 +414,8 @@ mod tests {
         assert!(book.checkout.is_none());
 
         {
-            checkout_repo
-                .create(CreateCheckout {
+            checkout_use_case
+                .checkout_book(CreateCheckout {
                     book_id: book.id,
                     checked_out_by: user_id1,
                     checked_out_at: Utc::now(),
@@ -403,8 +427,8 @@ mod tests {
             let co = book_co.checkout.unwrap();
             assert_eq!(co.checked_out_by.id, user_id1);
 
-            checkout_repo
-                .update_returned(UpdateReturned {
+            checkout_use_case
+                .return_book(UpdateReturned {
                     checkout_id: co.checkout_id,
                     book_id: book_co.id,
                     returned_by: user_id1,
@@ -417,8 +441,8 @@ mod tests {
         }
 
         {
-            checkout_repo
-                .create(CreateCheckout {
+            checkout_use_case
+                .checkout_book(CreateCheckout {
                     book_id: book.id,
                     checked_out_by: user_id2,
                     checked_out_at: Utc::now(),
@@ -430,8 +454,8 @@ mod tests {
             let co = book_co.checkout.unwrap();
             assert_eq!(co.checked_out_by.id, user_id2);
 
-            checkout_repo
-                .update_returned(UpdateReturned {
+            checkout_use_case
+                .return_book(UpdateReturned {
                     checkout_id: co.checkout_id,
                     book_id: book_co.id,
                     returned_by: user_id2,
