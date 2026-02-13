@@ -34,7 +34,7 @@ pub async fn register_user(
     }
     req.validate(&())?;
 
-    let registered_user = registry.user_repository().create(req.into()).await?;
+    let registered_user = registry.user_use_case().register_user(req.into()).await?;
 
     Ok(Json(registered_user.into()))
 }
@@ -53,8 +53,8 @@ pub async fn list_users(
     State(registry): State<AppRegistry>,
 ) -> AppResult<Json<UsersResponse>> {
     let items = registry
-        .user_repository()
-        .find_all()
+        .user_use_case()
+        .list_users()
         .await?
         .into_iter()
         .map(UserResponse::from)
@@ -79,8 +79,8 @@ pub async fn delete_user(
     }
 
     registry
-        .user_repository()
-        .delete(DeleteUser { user_id })
+        .user_use_case()
+        .delete_user(DeleteUser { user_id })
         .await?;
 
     Ok(StatusCode::OK)
@@ -97,8 +97,8 @@ pub async fn change_role(
     }
 
     registry
-        .user_repository()
-        .update_role(UpdateUserRoleRequestWithUserId::new(user_id, req).into())
+        .user_use_case()
+        .change_role(UpdateUserRoleRequestWithUserId::new(user_id, req).into())
         .await?;
 
     Ok(StatusCode::OK)
@@ -147,8 +147,8 @@ pub async fn change_password(
     req.validate(&())?;
 
     registry
-        .user_repository()
-        .update_password(UpdateUserPasswordRequestWithUserId::new(user.id(), req).into())
+        .user_use_case()
+        .change_password(UpdateUserPasswordRequestWithUserId::new(user.id(), req).into())
         .await?;
 
     Ok(StatusCode::OK)
@@ -174,8 +174,8 @@ pub async fn get_checkouts(
     State(registry): State<AppRegistry>,
 ) -> AppResult<Json<CheckoutsResponse>> {
     registry
-        .checkout_repository()
-        .find_unreturned_by_user_id(user.id())
+        .user_use_case()
+        .get_checkouts(user.id())
         .await
         .map(CheckoutsResponse::from)
         .map(Json)

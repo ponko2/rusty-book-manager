@@ -1,6 +1,8 @@
-use crate::database::{ConnectionPool, model::user::UserRow};
+use crate::database::{
+    ConnectionSource,
+    model::user::{UserItem, UserRow},
+};
 use async_trait::async_trait;
-use derive_new::new;
 use kernel::{
     model::{
         id::UserId,
@@ -14,14 +16,22 @@ use kernel::{
 };
 use shared::error::{AppError, AppResult};
 
-#[derive(new)]
-pub struct UserRepositoryImpl {
-    db: ConnectionPool,
+pub struct UserRepositoryImpl<'t, 'm> {
+    source: ConnectionSource<'t, 'm>,
+}
+
+impl<'t, 'm> UserRepositoryImpl<'t, 'm> {
+    pub fn new(source: impl Into<ConnectionSource<'t, 'm>>) -> Self {
+        Self {
+            source: source.into(),
+        }
+    }
 }
 
 #[async_trait]
-impl UserRepository for UserRepositoryImpl {
+impl<'t, 'm> UserRepository for UserRepositoryImpl<'t, 'm> {
     async fn create(&self, event: CreateUser) -> AppResult<User> {
+        let mut conn = self.source.acquire().await?;
         let user_id = UserId::new();
         let hashed_password = hash_password(&event.password)?;
         let role = Role::User;
@@ -36,7 +46,7 @@ impl UserRepository for UserRepositoryImpl {
             hashed_password,
             role.as_ref()
         )
-        .execute(self.db.inner_ref())
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
         if res.rows_affected() < 1 {
@@ -53,6 +63,7 @@ impl UserRepository for UserRepositoryImpl {
     }
 
     async fn delete(&self, event: DeleteUser) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query!(
             r#"
                 DELETE FROM users
@@ -60,7 +71,7 @@ impl UserRepository for UserRepositoryImpl {
             "#,
             event.user_id as _
         )
-        .execute(self.db.inner_ref())
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
         if res.rows_affected() < 1 {
@@ -70,6 +81,7 @@ impl UserRepository for UserRepositoryImpl {
     }
 
     async fn find_all(&self) -> AppResult<Vec<User>> {
+        let mut conn = self.source.acquire().await?;
         let users = sqlx::query_as!(
             UserRow,
             r#"
@@ -85,7 +97,7 @@ impl UserRepository for UserRepositoryImpl {
                 ORDER BY u.created_at DESC;
             "#,
         )
-        .fetch_all(self.db.inner_ref())
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?
         .into_iter()
@@ -95,6 +107,7 @@ impl UserRepository for UserRepositoryImpl {
     }
 
     async fn find_current_user(&self, current_user_id: UserId) -> AppResult<Option<User>> {
+        let mut conn = self.source.acquire().await?;
         let row = sqlx::query_as!(
             UserRow,
             r#"
@@ -111,7 +124,7 @@ impl UserRepository for UserRepositoryImpl {
             "#,
             current_user_id as _,
         )
-        .fetch_optional(self.db.inner_ref())
+        .fetch_optional(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
         match row {
@@ -120,35 +133,57 @@ impl UserRepository for UserRepositoryImpl {
         }
     }
 
-    async fn update_password(&self, event: UpdateUserPassword) -> AppResult<()> {
-        let mut tx = self.db.begin().await?;
-        let original_password_hash = sqlx::query!(
+    async fn find_password_hash_by_email(&self, email: &str) -> AppResult<(UserId, String)> {
+        let mut conn = self.source.acquire().await?;
+        let UserItem {
+            user_id,
+            password_hash,
+        } = sqlx::query_as!(
+            UserItem,
+            r#"
+                SELECT user_id, password_hash FROM users
+                WHERE email = $1;
+            "#,
+            email,
+        )
+        .fetch_one(&mut *conn)
+        .await
+        .map_err(AppError::SpecificOperationError)?;
+        Ok((user_id, password_hash))
+    }
+
+    async fn find_password_hash_by_user_id(&self, user_id: UserId) -> AppResult<String> {
+        let mut conn = self.source.acquire().await?;
+        let res = sqlx::query!(
             r#"
                 SELECT password_hash FROM users WHERE user_id = $1;
             "#,
-            event.user_id as _
+            user_id as _
         )
-        .fetch_one(&mut *tx)
+        .fetch_one(&mut *conn)
         .await
-        .map_err(AppError::SpecificOperationError)?
-        .password_hash;
-        verify_password(&event.current_password, &original_password_hash)?;
-        let new_password_hash = hash_password(&event.new_password)?;
+        .map_err(AppError::SpecificOperationError)?;
+        Ok(res.password_hash)
+    }
+
+    async fn update_password(&self, event: UpdateUserPassword) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
+        let password_hash = hash_password(&event.new_password)?;
         sqlx::query!(
             r#"
                 UPDATE users SET password_hash = $2 WHERE user_id = $1;
             "#,
             event.user_id as _,
-            new_password_hash,
+            password_hash,
         )
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
-        tx.commit().await.map_err(AppError::TransactionError)?;
         Ok(())
     }
 
     async fn update_role(&self, event: UpdateUserRole) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query!(
             r#"
                 UPDATE users
@@ -160,7 +195,7 @@ impl UserRepository for UserRepositoryImpl {
             event.user_id as _,
             event.role.as_ref()
         )
-        .execute(self.db.inner_ref())
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
         if res.rows_affected() < 1 {
@@ -174,18 +209,9 @@ fn hash_password(password: &str) -> AppResult<String> {
     bcrypt::hash(password, bcrypt::DEFAULT_COST).map_err(AppError::from)
 }
 
-fn verify_password(password: &str, hash: &str) -> AppResult<()> {
-    let valid = bcrypt::verify(password, hash)?;
-    if !valid {
-        return Err(AppError::UnauthenticatedError);
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::UserRepositoryImpl;
-    use crate::database::ConnectionPool;
     use kernel::{
         model::{
             id::UserId,
@@ -201,7 +227,7 @@ mod tests {
 
     #[sqlx::test(fixtures("common"))]
     async fn test_find_current_user(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let repo = UserRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+        let repo = UserRepositoryImpl::new(pool);
         let current_user_id = UserId::from_str("5b4c96ac-316a-4bee-8e69-cac5eb84ff4c")?;
         let me = repo.find_current_user(current_user_id).await?;
         assert!(me.is_some());
@@ -220,7 +246,7 @@ mod tests {
 
     #[sqlx::test(fixtures("common"))]
     async fn test_users(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let repo = UserRepositoryImpl::new(ConnectionPool::new(pool.clone()));
+        let repo = UserRepositoryImpl::new(pool.clone());
 
         let event = CreateUser {
             name: "Test".into(),

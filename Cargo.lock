@@ -15,6 +15,7 @@ dependencies = [
  "redis",
  "shared",
  "sqlx",
+ "tokio",
 ]
 
 [[package]]
@@ -1190,6 +1191,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
+ "bcrypt",
  "chrono",
  "derive-new",
  "mockall",
