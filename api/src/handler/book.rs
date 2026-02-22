@@ -1,5 +1,5 @@
 use crate::{
-    extractor::AuthorizedUser,
+    extractor::{AuthorizedUser, ValidatedJson, ValidatedQuery},
     model::book::{
         BookListQuery, BookResponse, CreateBookRequest, PaginatedBookResponse, UpdateBookRequest,
         UpdateBookRequestWithIds,
@@ -7,10 +7,9 @@ use crate::{
 };
 use axum::{
     Json,
-    extract::{Path, Query, State},
+    extract::{Path, State},
     http::StatusCode,
 };
-use garde::Validate;
 use kernel::model::{book::event::DeleteBook, id::BookId};
 use registry::AppRegistry;
 use shared::error::{AppError, AppResult};
@@ -30,19 +29,17 @@ use shared::error::{AppError, AppResult};
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn register_book(
     user: AuthorizedUser,
     State(registry): State<AppRegistry>,
-    Json(req): Json<CreateBookRequest>,
+    ValidatedJson(req): ValidatedJson<CreateBookRequest>,
 ) -> Result<StatusCode, AppError> {
-    req.validate(&())?;
-
     registry
         .book_use_case()
-        .register_book(req.into(), user.id())
+        .register_book(req.try_into()?, user.id())
         .await
         .map(|_| StatusCode::CREATED)
 }
@@ -66,16 +63,14 @@ pub async fn register_book(
 #[tracing::instrument(
     skip(_user, registry),
     fields(
-        user_id = %_user.user.id.to_string()
+        user_id = %_user.id().to_string()
     )
 )]
 pub async fn show_book_list(
     _user: AuthorizedUser,
-    Query(query): Query<BookListQuery>,
+    ValidatedQuery(query): ValidatedQuery<BookListQuery>,
     State(registry): State<AppRegistry>,
 ) -> AppResult<Json<PaginatedBookResponse>> {
-    query.validate(&())?;
-
     registry
         .book_use_case()
         .show_book_list(query.into())
@@ -104,7 +99,7 @@ pub async fn show_book_list(
 #[tracing::instrument(
     skip(_user, registry),
     fields(
-        user_id = %_user.user.id.to_string()
+        user_id = %_user.id().to_string()
     )
 )]
 pub async fn show_book(
@@ -142,21 +137,19 @@ pub async fn show_book(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn update_book(
     user: AuthorizedUser,
     Path(book_id): Path<BookId>,
     State(registry): State<AppRegistry>,
-    Json(req): Json<UpdateBookRequest>,
+    ValidatedJson(req): ValidatedJson<UpdateBookRequest>,
 ) -> AppResult<StatusCode> {
-    req.validate(&())?;
-
     let update_book = UpdateBookRequestWithIds::new(book_id, user.id(), req);
     registry
         .book_use_case()
-        .update_book(update_book.into())
+        .update_book(update_book.try_into()?)
         .await
         .map(|_| StatusCode::OK)
 }
@@ -177,7 +170,7 @@ pub async fn update_book(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn delete_book(

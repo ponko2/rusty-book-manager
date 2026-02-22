@@ -36,18 +36,15 @@ async fn show_book_list_with_query_200(
 
         let mut mock = MockBookUseCase::new();
         mock.expect_show_book_list().returning(move |opt| {
-            let items = vec![Book {
-                id: book_id,
-                title: "RustによるWebアプリケーション開発".to_string(),
-                isbn: "".to_string(),
-                author: "Yuki Toyoda".to_string(),
-                description: "RustによるWebアプリケーション開発".to_string(),
-                owner: BookOwner {
-                    id: UserId::new(),
-                    name: "Yuki Toyoda".to_string(),
-                },
-                checkout: None,
-            }];
+            let items = vec![Book::new(
+                book_id,
+                "RustによるWebアプリケーション開発".parse().unwrap(),
+                "Yuki Toyoda".parse().unwrap(),
+                "978-4-00-000000-0".parse().unwrap(),
+                "RustによるWebアプリケーション開発".parse().unwrap(),
+                BookOwner::new(UserId::new(), "Yuki Toyoda".parse().unwrap()),
+                None,
+            )];
             Ok(PaginatedList {
                 total: 1,
                 limit: opt.limit,
@@ -84,18 +81,15 @@ async fn show_book_list_with_query_400(
     fixture.expect_book_use_case().returning(move || {
         let mut mock = MockBookUseCase::new();
         mock.expect_show_book_list().returning(move |opt| {
-            let items = vec![Book {
-                id: book_id,
-                title: "RustによるWebアプリケーション開発".to_string(),
-                isbn: "".to_string(),
-                author: "Yuki Toyoda".to_string(),
-                description: "RustによるWebアプリケーション開発".to_string(),
-                owner: BookOwner {
-                    id: UserId::new(),
-                    name: "Yuki Toyoda".to_string(),
-                },
-                checkout: None,
-            }];
+            let items = vec![Book::new(
+                book_id,
+                "RustによるWebアプリケーション開発".parse().unwrap(),
+                "Yuki Toyoda".parse().unwrap(),
+                "978-4-00-000000-0".parse().unwrap(),
+                "RustによるWebアプリケーション開発".parse().unwrap(),
+                BookOwner::new(UserId::new(), "Yuki Toyoda".parse().unwrap()),
+                None,
+            )];
             Ok(PaginatedList {
                 total: 1,
                 limit: opt.limit,

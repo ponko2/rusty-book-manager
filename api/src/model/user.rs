@@ -9,6 +9,7 @@ use kernel::model::{
     },
 };
 use serde::{Deserialize, Serialize};
+use shared::error::AppError;
 use strum::VariantNames;
 
 #[cfg(debug_assertions)]
@@ -56,16 +57,11 @@ pub struct UserResponse {
 
 impl From<User> for UserResponse {
     fn from(value: User) -> Self {
-        let User {
-            id,
-            name,
-            email,
-            role,
-        } = value;
+        let (id, name, email, role) = value.into_parts();
         Self {
             id,
-            name,
-            email,
+            name: name.into_inner(),
+            email: email.into_inner(),
             role: RoleName::from(role),
         }
     }
@@ -110,18 +106,20 @@ pub struct CreateUserRequest {
     password: String,
 }
 
-impl From<CreateUserRequest> for CreateUser {
-    fn from(value: CreateUserRequest) -> Self {
+impl TryFrom<CreateUserRequest> for CreateUser {
+    type Error = AppError;
+
+    fn try_from(value: CreateUserRequest) -> Result<Self, Self::Error> {
         let CreateUserRequest {
             name,
             email,
             password,
         } = value;
-        Self {
-            name,
-            email,
+        Ok(Self {
+            name: name.parse()?,
+            email: email.parse()?,
             password,
-        }
+        })
     }
 }
 
@@ -153,8 +151,11 @@ pub struct BookOwner {
 
 impl From<kernel::model::user::BookOwner> for BookOwner {
     fn from(value: kernel::model::user::BookOwner) -> Self {
-        let kernel::model::user::BookOwner { id, name } = value;
-        Self { id, name }
+        let (id, name) = value.into_parts();
+        Self {
+            id,
+            name: name.into_inner(),
+        }
     }
 }
 
@@ -168,7 +169,10 @@ pub struct CheckoutUser {
 
 impl From<kernel::model::user::CheckoutUser> for CheckoutUser {
     fn from(value: kernel::model::user::CheckoutUser) -> Self {
-        let kernel::model::user::CheckoutUser { id, name } = value;
-        Self { id, name }
+        let (id, name) = value.into_parts();
+        Self {
+            id,
+            name: name.into_inner(),
+        }
     }
 }

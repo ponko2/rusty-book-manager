@@ -5,3 +5,4 @@ pub mod id;
 pub mod list;
 pub mod role;
 pub mod user;
+pub mod value;

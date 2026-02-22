@@ -11,6 +11,7 @@ use kernel::model::{
     list::PaginatedList,
 };
 use serde::{Deserialize, Serialize};
+use shared::error::AppError;
 
 #[cfg(debug_assertions)]
 use utoipa::ToSchema;
@@ -29,20 +30,22 @@ pub struct CreateBookRequest {
     pub description: String,
 }
 
-impl From<CreateBookRequest> for CreateBook {
-    fn from(value: CreateBookRequest) -> Self {
+impl TryFrom<CreateBookRequest> for CreateBook {
+    type Error = AppError;
+
+    fn try_from(value: CreateBookRequest) -> Result<Self, Self::Error> {
         let CreateBookRequest {
             title,
             author,
             isbn,
             description,
         } = value;
-        CreateBook {
-            title,
-            author,
-            isbn,
-            description,
-        }
+        Ok(CreateBook {
+            title: title.parse()?,
+            author: author.parse()?,
+            isbn: isbn.parse()?,
+            description: description.parse()?,
+        })
     }
 }
 
@@ -62,8 +65,10 @@ pub struct UpdateBookRequest {
 
 #[derive(new)]
 pub struct UpdateBookRequestWithIds(BookId, UserId, UpdateBookRequest);
-impl From<UpdateBookRequestWithIds> for UpdateBook {
-    fn from(value: UpdateBookRequestWithIds) -> Self {
+impl TryFrom<UpdateBookRequestWithIds> for UpdateBook {
+    type Error = AppError;
+
+    fn try_from(value: UpdateBookRequestWithIds) -> Result<Self, Self::Error> {
         let UpdateBookRequestWithIds(
             book_id,
             user_id,
@@ -74,14 +79,14 @@ impl From<UpdateBookRequestWithIds> for UpdateBook {
                 description,
             },
         ) = value;
-        UpdateBook {
+        Ok(UpdateBook {
             book_id,
-            title,
-            author,
-            isbn,
-            description,
+            title: title.parse()?,
+            author: author.parse()?,
+            isbn: isbn.parse()?,
+            description: description.parse()?,
             requested_user: user_id,
-        }
+        })
     }
 }
 
@@ -122,21 +127,13 @@ pub struct BookResponse {
 
 impl From<Book> for BookResponse {
     fn from(value: Book) -> Self {
-        let Book {
-            id,
-            title,
-            author,
-            isbn,
-            description,
-            owner,
-            checkout,
-        } = value;
+        let (id, title, author, isbn, description, owner, checkout) = value.into_parts();
         Self {
             id,
-            title,
-            author,
-            isbn,
-            description,
+            title: title.into_inner(),
+            author: author.into_inner(),
+            isbn: isbn.into_inner(),
+            description: description.into_inner(),
             owner: owner.into(),
             checkout: checkout.map(BookCheckoutResponse::from),
         }
@@ -181,15 +178,10 @@ pub struct BookCheckoutResponse {
 
 impl From<Checkout> for BookCheckoutResponse {
     fn from(value: Checkout) -> Self {
-        let Checkout {
-            checkout_id,
-            checked_out_by,
-            checked_out_at,
-        } = value;
+        let (id, user, checked_out_at) = value.into_parts();
         Self {
-            id: checkout_id,
-            checked_out_by: checked_out_by.into(),
-
+            id,
+            checked_out_by: user.into(),
             checked_out_at,
         }
     }
