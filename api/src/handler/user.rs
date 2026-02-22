@@ -1,5 +1,5 @@
 use crate::{
-    extractor::AuthorizedUser,
+    extractor::{AuthorizedUser, ValidatedJson},
     model::{
         checkout::CheckoutsResponse,
         user::{
@@ -13,7 +13,6 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use garde::Validate;
 use kernel::model::{id::UserId, user::event::DeleteUser};
 use registry::AppRegistry;
 use shared::error::{AppError, AppResult};
@@ -21,20 +20,22 @@ use shared::error::{AppError, AppResult};
 #[tracing::instrument(
     skip(user, registry, req),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn register_user(
     user: AuthorizedUser,
     State(registry): State<AppRegistry>,
-    Json(req): Json<CreateUserRequest>,
+    ValidatedJson(req): ValidatedJson<CreateUserRequest>,
 ) -> AppResult<Json<UserResponse>> {
     if !user.is_admin() {
         return Err(AppError::ForbiddenOperation);
     }
-    req.validate(&())?;
 
-    let registered_user = registry.user_use_case().register_user(req.into()).await?;
+    let registered_user = registry
+        .user_use_case()
+        .register_user(req.try_into()?)
+        .await?;
 
     Ok(Json(registered_user.into()))
 }
@@ -66,7 +67,7 @@ pub async fn list_users(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn delete_user(
@@ -115,8 +116,8 @@ pub async fn change_role(
 #[tracing::instrument(
     skip(user),
     fields(
-        user_id = %user.user.id.to_string(),
-        user_name = %user.user.name
+        user_id = %user.id().to_string(),
+        user_name = %user.user.name().to_string()
     )
 )]
 pub async fn get_current_user(user: AuthorizedUser) -> Json<UserResponse> {
@@ -136,16 +137,14 @@ pub async fn get_current_user(user: AuthorizedUser) -> Json<UserResponse> {
 #[tracing::instrument(
     skip(user, registry, req),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn change_password(
     user: AuthorizedUser,
     State(registry): State<AppRegistry>,
-    Json(req): Json<UpdateUserPasswordRequest>,
+    ValidatedJson(req): ValidatedJson<UpdateUserPasswordRequest>,
 ) -> AppResult<StatusCode> {
-    req.validate(&())?;
-
     registry
         .user_use_case()
         .change_password(UpdateUserPasswordRequestWithUserId::new(user.id(), req).into())
@@ -166,7 +165,7 @@ pub async fn change_password(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn get_checkouts(

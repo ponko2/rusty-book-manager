@@ -52,8 +52,8 @@ pub async fn login(
 #[tracing::instrument(
     skip(registry, user),
     fields(
-        user_id = %user.user.id.to_string(),
-        user_name = %user.user.name
+        user_id = %user.user.id().to_string(),
+        user_name = %user.user.name().to_string()
     )
 )]
 pub async fn logout(

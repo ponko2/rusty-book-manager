@@ -1,9 +1,13 @@
-use crate::model::{id::UserId, role::Role};
+use crate::model::{
+    id::UserId,
+    role::Role,
+    value::{UserEmail, UserName},
+};
 
 #[derive(Debug)]
 pub struct CreateUser {
-    pub name: String,
-    pub email: String,
+    pub name: UserName,
+    pub email: UserEmail,
     pub password: String,
 }
 

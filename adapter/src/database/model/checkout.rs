@@ -2,6 +2,7 @@ use kernel::model::{
     checkout::{Checkout, CheckoutBook, CheckoutState},
     id::{BookId, CheckoutId, UserId},
 };
+use shared::error::AppError;
 use sqlx::types::chrono::{DateTime, Utc};
 
 pub struct CheckoutStateRow {
@@ -35,8 +36,10 @@ pub struct CheckoutRow {
     pub isbn: String,
 }
 
-impl From<CheckoutRow> for Checkout {
-    fn from(value: CheckoutRow) -> Self {
+impl TryFrom<CheckoutRow> for Checkout {
+    type Error = AppError;
+
+    fn try_from(value: CheckoutRow) -> Result<Self, Self::Error> {
         let CheckoutRow {
             checkout_id,
             book_id,
@@ -46,18 +49,13 @@ impl From<CheckoutRow> for Checkout {
             author,
             isbn,
         } = value;
-        Checkout {
-            id: checkout_id,
-            checked_out_by: user_id,
+        Ok(Checkout::new(
+            checkout_id,
+            user_id,
             checked_out_at,
-            returned_at: None,
-            book: CheckoutBook {
-                book_id,
-                title,
-                author,
-                isbn,
-            },
-        }
+            None,
+            CheckoutBook::new(book_id, title.parse()?, author.parse()?, isbn.parse()?),
+        ))
     }
 }
 
@@ -72,8 +70,10 @@ pub struct ReturnedCheckoutRow {
     pub isbn: String,
 }
 
-impl From<ReturnedCheckoutRow> for Checkout {
-    fn from(value: ReturnedCheckoutRow) -> Self {
+impl TryFrom<ReturnedCheckoutRow> for Checkout {
+    type Error = AppError;
+
+    fn try_from(value: ReturnedCheckoutRow) -> Result<Self, Self::Error> {
         let ReturnedCheckoutRow {
             checkout_id,
             book_id,
@@ -84,17 +84,12 @@ impl From<ReturnedCheckoutRow> for Checkout {
             author,
             isbn,
         } = value;
-        Checkout {
-            id: checkout_id,
-            checked_out_by: user_id,
+        Ok(Checkout::new(
+            checkout_id,
+            user_id,
             checked_out_at,
-            returned_at: Some(returned_at),
-            book: CheckoutBook {
-                book_id,
-                title,
-                author,
-                isbn,
-            },
-        }
+            Some(returned_at),
+            CheckoutBook::new(book_id, title.parse()?, author.parse()?, isbn.parse()?),
+        ))
     }
 }
