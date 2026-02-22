@@ -1,5 +1,5 @@
 use kernel::model::{
-    checkout::{Checkout, CheckoutBook},
+    checkout::{Checkout, CheckoutBook, CheckoutState},
     id::{BookId, CheckoutId, UserId},
 };
 use sqlx::types::chrono::{DateTime, Utc};
@@ -8,6 +8,21 @@ pub struct CheckoutStateRow {
     pub book_id: BookId,
     pub checkout_id: Option<CheckoutId>,
     pub user_id: Option<UserId>,
+}
+
+impl From<CheckoutStateRow> for CheckoutState {
+    fn from(value: CheckoutStateRow) -> Self {
+        let CheckoutStateRow {
+            book_id,
+            checkout_id,
+            user_id,
+        } = value;
+        CheckoutState {
+            book_id,
+            checkout_id,
+            user_id,
+        }
+    }
 }
 
 pub struct CheckoutRow {
