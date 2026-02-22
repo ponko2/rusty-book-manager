@@ -14,10 +14,10 @@ pub struct AuthorizedUser {
 
 impl AuthorizedUser {
     pub fn id(&self) -> UserId {
-        self.user.id
+        self.user.id()
     }
     pub fn is_admin(&self) -> bool {
-        self.user.role == Role::Admin
+        self.user.role() == &Role::Admin
     }
 }
 

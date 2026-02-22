@@ -36,19 +36,12 @@ pub struct CheckoutResponse {
 
 impl From<Checkout> for CheckoutResponse {
     fn from(value: Checkout) -> Self {
-        let Checkout {
-            id,
-            checked_out_by,
-            checked_out_at,
-            returned_at,
-            book,
-        } = value;
         Self {
-            id,
-            checked_out_by,
-            checked_out_at,
-            returned_at,
-            book: book.into(),
+            id: value.id(),
+            checked_out_by: value.checked_out_by(),
+            checked_out_at: value.checked_out_at(),
+            returned_at: value.returned_at(),
+            book: value.book().clone().into(),
         }
     }
 }
@@ -65,17 +58,12 @@ pub struct CheckoutBookResponse {
 
 impl From<CheckoutBook> for CheckoutBookResponse {
     fn from(value: CheckoutBook) -> Self {
-        let CheckoutBook {
-            book_id,
-            title,
-            author,
-            isbn,
-        } = value;
+        let (id, title, author, isbn) = value.into_parts();
         Self {
-            id: book_id,
-            title,
-            author,
-            isbn,
+            id,
+            title: title.into_inner(),
+            author: author.into_inner(),
+            isbn: isbn.into_inner(),
         }
     }
 }

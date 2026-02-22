@@ -41,8 +41,8 @@ impl<'t, 'm> UserRepository for UserRepositoryImpl<'t, 'm> {
                 SELECT $1, $2, $3, $4, role_id FROM roles WHERE name = $5;
             "#,
             user_id as _,
-            event.name,
-            event.email,
+            event.name.as_ref(),
+            event.email.as_ref(),
             hashed_password,
             role.as_ref()
         )
@@ -54,12 +54,7 @@ impl<'t, 'm> UserRepository for UserRepositoryImpl<'t, 'm> {
                 "No user has been created".into(),
             ));
         }
-        Ok(User {
-            id: user_id,
-            name: event.name,
-            email: event.email,
-            role,
-        })
+        Ok(User::new(user_id, event.name, event.email, role))
     }
 
     async fn delete(&self, event: DeleteUser) -> AppResult<()> {
@@ -233,12 +228,12 @@ mod tests {
         assert!(me.is_some());
         assert_eq!(
             me,
-            Some(User {
-                id: UserId::from_str("5b4c96ac-316a-4bee-8e69-cac5eb84ff4c")?,
-                email: "eleazar.fig@example.com".into(),
-                name: "Eleazar Fig".into(),
-                role: Role::Admin,
-            })
+            Some(User::new(
+                current_user_id,
+                "Eleazar Fig".parse()?,
+                "eleazar.fig@example.com".parse()?,
+                Role::Admin,
+            ))
         );
 
         Ok(())
@@ -249,39 +244,39 @@ mod tests {
         let repo = UserRepositoryImpl::new(pool.clone());
 
         let event = CreateUser {
-            name: "Test".into(),
-            email: "test@example.com".into(),
+            name: "Test".parse().unwrap(),
+            email: "test@example.com".parse().unwrap(),
             password: "dummy".into(),
         };
         let user = repo.create(event).await?;
 
         {
             let event = UpdateUserPassword {
-                user_id: user.id,
+                user_id: user.id(),
                 current_password: "dummy".into(),
                 new_password: "new_password".into(),
             };
             repo.update_password(event).await?;
 
             let event = UpdateUserRole {
-                user_id: user.id,
+                user_id: user.id(),
                 role: Role::Admin,
             };
             repo.update_role(event).await?;
         }
 
-        let user_found = repo.find_current_user(user.id).await?;
-        assert_eq!(user_found.unwrap().id, user.id);
+        let user_found = repo.find_current_user(user.id()).await?;
+        assert_eq!(user_found.unwrap().id(), user.id());
 
         let users = repo.find_all().await?;
         assert!(!users.is_empty());
 
         {
-            let event = DeleteUser { user_id: user.id };
+            let event = DeleteUser { user_id: user.id() };
             repo.delete(event).await?;
         }
 
-        let user_deleted = repo.find_current_user(user.id).await?;
+        let user_deleted = repo.find_current_user(user.id()).await?;
         assert!(user_deleted.is_none());
 
         Ok(())

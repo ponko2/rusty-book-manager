@@ -4,6 +4,7 @@ use kernel::model::{
     id::{BookId, CheckoutId, UserId},
     user::{BookOwner, CheckoutUser},
 };
+use shared::error::{AppError, AppResult};
 
 pub struct BookRow {
     pub book_id: BookId,
@@ -16,7 +17,7 @@ pub struct BookRow {
 }
 
 impl BookRow {
-    pub fn into_book(self, checkout: Option<Checkout>) -> Book {
+    pub fn try_into_book(self, checkout: Option<Checkout>) -> AppResult<Book> {
         let BookRow {
             book_id,
             title,
@@ -26,18 +27,15 @@ impl BookRow {
             owned_by,
             owner_name,
         } = self;
-        Book {
-            id: book_id,
-            title,
-            author,
-            isbn,
-            description,
-            owner: BookOwner {
-                id: owned_by,
-                name: owner_name,
-            },
+        Ok(Book::new(
+            book_id,
+            title.parse()?,
+            author.parse()?,
+            isbn.parse()?,
+            description.parse()?,
+            BookOwner::new(owned_by, owner_name.parse()?),
             checkout,
-        }
+        ))
     }
 }
 
@@ -54,8 +52,10 @@ pub struct BookCheckoutRow {
     pub checked_out_at: DateTime<Utc>,
 }
 
-impl From<BookCheckoutRow> for Checkout {
-    fn from(value: BookCheckoutRow) -> Self {
+impl TryFrom<BookCheckoutRow> for Checkout {
+    type Error = AppError;
+
+    fn try_from(value: BookCheckoutRow) -> Result<Self, Self::Error> {
         let BookCheckoutRow {
             checkout_id,
             book_id: _,
@@ -63,13 +63,10 @@ impl From<BookCheckoutRow> for Checkout {
             user_name,
             checked_out_at,
         } = value;
-        Checkout {
+        Ok(Checkout::new(
             checkout_id,
-            checked_out_by: CheckoutUser {
-                id: user_id,
-                name: user_name,
-            },
+            CheckoutUser::new(user_id, user_name.parse()?),
             checked_out_at,
-        }
+        ))
     }
 }

@@ -99,8 +99,8 @@ impl<'t, 'm> CheckoutRepository for CheckoutRepositoryImpl<'t, 'm> {
         .await
         .map_err(AppError::SpecificOperationError)?
         .into_iter()
-        .map(Checkout::from)
-        .collect();
+        .map(Checkout::try_from)
+        .collect::<AppResult<_>>()?;
 
         if let Some(co) = checkout {
             checkout_histories.insert(0, co);
@@ -130,8 +130,8 @@ impl<'t, 'm> CheckoutRepository for CheckoutRepositoryImpl<'t, 'm> {
         )
         .fetch_all(&mut *conn)
         .await
-        .map(|rows| rows.into_iter().map(Checkout::from).collect())
-        .map_err(AppError::SpecificOperationError)
+        .map(|rows| rows.into_iter().map(Checkout::try_from).collect())
+        .map_err(AppError::SpecificOperationError)?
     }
 
     async fn find_unreturned_by_user_id(&self, user_id: UserId) -> AppResult<Vec<Checkout>> {
@@ -157,8 +157,8 @@ impl<'t, 'm> CheckoutRepository for CheckoutRepositoryImpl<'t, 'm> {
         )
         .fetch_all(&mut *conn)
         .await
-        .map(|rows| rows.into_iter().map(Checkout::from).collect())
-        .map_err(AppError::SpecificOperationError)
+        .map(|rows| rows.into_iter().map(Checkout::try_from).collect())
+        .map_err(AppError::SpecificOperationError)?
     }
 
     async fn insert_checkout(&self, event: &CreateCheckout) -> AppResult<()> {
@@ -240,7 +240,8 @@ impl<'t, 'm> CheckoutRepositoryImpl<'t, 'm> {
         .fetch_optional(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?
-        .map(Checkout::from);
+        .map(Checkout::try_from)
+        .transpose()?;
 
         Ok(res)
     }
@@ -251,10 +252,7 @@ mod tests {
     use super::*;
     use crate::{database::ConnectionPool, redis::RedisClient, unit_of_work::UnitOfWorkScopeImpl};
     use chrono::Utc;
-    use kernel::{
-        model::checkout::CheckoutBook,
-        use_case::checkout::{CheckoutUseCase, CheckoutUseCaseImpl},
-    };
+    use kernel::use_case::checkout::{CheckoutUseCase, CheckoutUseCaseImpl};
     use shared::config::RedisConfig;
     use std::{str::FromStr, sync::Arc};
 
@@ -323,7 +321,7 @@ mod tests {
 
             let co = repo.find_unreturned_by_book_id(book_id1).await?;
             assert!(
-                matches!(co, Some(Checkout{checked_out_by,book:CheckoutBook{book_id,..},..}) if book_id == book_id1 && checked_out_by == user_id1)
+                matches!(co, Some(ref co) if co.book().book_id() == book_id1 && co.checked_out_by() == user_id1)
             );
 
             let res = use_case
@@ -339,7 +337,7 @@ mod tests {
 
             let res = use_case
                 .return_book(UpdateReturned {
-                    checkout_id: co.id,
+                    checkout_id: co.id(),
                     book_id: BookId::new(),
                     returned_by: user_id1,
                     returned_at: Utc::now(),
@@ -359,7 +357,7 @@ mod tests {
 
             let res = use_case
                 .return_book(UpdateReturned {
-                    checkout_id: co.id,
+                    checkout_id: co.id(),
                     book_id: book_id1,
                     returned_by: user_id2,
                     returned_at: Utc::now(),
@@ -369,7 +367,7 @@ mod tests {
 
             use_case
                 .return_book(UpdateReturned {
-                    checkout_id: co.id,
+                    checkout_id: co.id(),
                     book_id: book_id1,
                     returned_by: user_id1,
                     returned_at: Utc::now(),
@@ -411,7 +409,7 @@ mod tests {
 
             use_case
                 .return_book(UpdateReturned {
-                    checkout_id: co.id,
+                    checkout_id: co.id(),
                     book_id: book_id1,
                     returned_by: user_id1,
                     returned_at: Utc::now(),
@@ -460,7 +458,7 @@ mod tests {
 
             use_case
                 .return_book(UpdateReturned {
-                    checkout_id: co.id,
+                    checkout_id: co.id(),
                     book_id: book_id1,
                     returned_by: user_id2,
                     returned_at: Utc::now(),

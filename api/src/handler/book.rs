@@ -30,7 +30,7 @@ use shared::error::{AppError, AppResult};
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn register_book(
@@ -42,7 +42,7 @@ pub async fn register_book(
 
     registry
         .book_use_case()
-        .register_book(req.into(), user.id())
+        .register_book(req.try_into()?, user.id())
         .await
         .map(|_| StatusCode::CREATED)
 }
@@ -66,7 +66,7 @@ pub async fn register_book(
 #[tracing::instrument(
     skip(_user, registry),
     fields(
-        user_id = %_user.user.id.to_string()
+        user_id = %_user.id().to_string()
     )
 )]
 pub async fn show_book_list(
@@ -104,7 +104,7 @@ pub async fn show_book_list(
 #[tracing::instrument(
     skip(_user, registry),
     fields(
-        user_id = %_user.user.id.to_string()
+        user_id = %_user.id().to_string()
     )
 )]
 pub async fn show_book(
@@ -142,7 +142,7 @@ pub async fn show_book(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn update_book(
@@ -156,7 +156,7 @@ pub async fn update_book(
     let update_book = UpdateBookRequestWithIds::new(book_id, user.id(), req);
     registry
         .book_use_case()
-        .update_book(update_book.into())
+        .update_book(update_book.try_into()?)
         .await
         .map(|_| StatusCode::OK)
 }
@@ -177,7 +177,7 @@ pub async fn update_book(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn delete_book(

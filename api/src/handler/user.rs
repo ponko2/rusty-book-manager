@@ -21,7 +21,7 @@ use shared::error::{AppError, AppResult};
 #[tracing::instrument(
     skip(user, registry, req),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn register_user(
@@ -34,7 +34,10 @@ pub async fn register_user(
     }
     req.validate(&())?;
 
-    let registered_user = registry.user_use_case().register_user(req.into()).await?;
+    let registered_user = registry
+        .user_use_case()
+        .register_user(req.try_into()?)
+        .await?;
 
     Ok(Json(registered_user.into()))
 }
@@ -66,7 +69,7 @@ pub async fn list_users(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn delete_user(
@@ -115,8 +118,8 @@ pub async fn change_role(
 #[tracing::instrument(
     skip(user),
     fields(
-        user_id = %user.user.id.to_string(),
-        user_name = %user.user.name
+        user_id = %user.id().to_string(),
+        user_name = %user.user.name().to_string()
     )
 )]
 pub async fn get_current_user(user: AuthorizedUser) -> Json<UserResponse> {
@@ -136,7 +139,7 @@ pub async fn get_current_user(user: AuthorizedUser) -> Json<UserResponse> {
 #[tracing::instrument(
     skip(user, registry, req),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn change_password(
@@ -166,7 +169,7 @@ pub async fn change_password(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string(),
+        user_id = %user.id().to_string(),
     )
 )]
 pub async fn get_checkouts(

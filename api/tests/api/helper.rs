@@ -31,12 +31,12 @@ pub fn fixture(mut fixture_registry: MockAppRegistryExt) -> MockAppRegistryExt {
         mock_auth_use_case
             .expect_find_authorized_user()
             .returning(|_| {
-                Ok(User {
-                    id: UserId::new(),
-                    name: "dummy-user".to_string(),
-                    email: "dummy@example.com".to_string(),
-                    role: Role::User,
-                })
+                Ok(User::new(
+                    UserId::new(),
+                    "dummy-user".parse().unwrap(),
+                    "dummy@example.com".parse().unwrap(),
+                    Role::User,
+                ))
             });
         mock_auth_use_case
             .expect_login()
