@@ -19,23 +19,23 @@ publish = false
 
 [workspace.dependencies]
 adapter = { path = "./adapter" }
-anyhow = "1.0.75"
+anyhow = "1.0.102"
 api = { path = "./api" }
-async-trait = "0.1.74"
-axum = { version = "0.7.5", features = ["macros"] }
-axum-extra = { version = "0.9.3", features = ["typed-header"] }
-bcrypt = "0.15.0"
-chrono = { version = "0.4.26", default-features = false, features = ["serde"] }
+async-trait = "0.1.89"
+axum = { version = "0.7.9", features = ["macros"] }
+axum-extra = { version = "0.9.6", features = ["typed-header"] }
+bcrypt = "0.15.1"
+chrono = { version = "0.4.43", default-features = false, features = ["serde"] }
 derive-new = "0.6.0"
 garde = { version = "0.18.0", features = ["derive", "email"] }
 itertools = "0.11.0"
 kernel = { path = "./kernel" }
 mockall = "0.11.4"
-redis = { version = "0.25.3", features = ["tokio-rustls-comp"] }
+redis = { version = "0.25.4", features = ["tokio-rustls-comp"] }
 registry = { path = "./registry" }
-serde = { version = "1.0.174", features = ["derive"] }
+serde = { version = "1.0.228", features = ["derive"] }
 shared = { path = "./shared" }
-sqlx = { version = "0.7.3", features = [
+sqlx = { version = "0.8.1", features = [
   "chrono",
   "macros",
   "migrate",
@@ -43,15 +43,15 @@ sqlx = { version = "0.7.3", features = [
   "runtime-tokio",
   "uuid",
 ] }
-strum = { version = "0.26.2", features = ["derive"] }
-thiserror = "1.0.44"
-tokio = { version = "1.37.0", features = ["full"] }
-tokio-stream = "0.1.14"
+strum = { version = "0.26.3", features = ["derive"] }
+thiserror = "1.0.69"
+tokio = { version = "1.49.0", features = ["full"] }
+tokio-stream = "0.1.18"
 tower = { version = "0.4.13", features = ["util"] }
-tracing = { version = "0.1.37", features = ["log"] }
-utoipa = { version = "4.1.0", features = ["axum_extras", "uuid", "chrono"] }
+tracing = { version = "0.1.44", features = ["log"] }
+utoipa = { version = "4.2.3", features = ["axum_extras", "uuid", "chrono"] }
 utoipa-redoc = { version = "2.0.0", features = ["axum"] }
-uuid = { version = "1.4.0", features = ["v4", "serde"] }
+uuid = { version = "1.21.0", features = ["v4", "serde"] }
 
 [dependencies]
 adapter.workspace = true
@@ -63,9 +63,9 @@ opentelemetry-jaeger = { version = "0.20.0", features = ["rt-tokio"] }
 registry.workspace = true
 shared.workspace = true
 tokio.workspace = true
-tower-http = { version = "0.5.0", features = ["cors", "trace"] }
+tower-http = { version = "0.5.2", features = ["cors", "trace"] }
 tracing-opentelemetry = "0.22.0"
-tracing-subscriber = { version = "0.3.18", features = ["env-filter", "json"] }
+tracing-subscriber = { version = "0.3.22", features = ["env-filter", "json"] }
 tracing.workspace = true
 utoipa-redoc.workspace = true
 utoipa.workspace = true
