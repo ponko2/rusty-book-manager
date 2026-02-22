@@ -11,7 +11,7 @@ use kernel::{
         list::PaginatedList,
         user::BookOwner,
     },
-    repository::book::MockBookRepository,
+    use_case::book::MockBookUseCase,
 };
 use rstest::rstest;
 use std::sync::Arc;
@@ -31,9 +31,11 @@ async fn show_book_list_with_query_200(
 ) -> anyhow::Result<()> {
     let book_id = BookId::new();
 
-    fixture.expect_book_repository().returning(move || {
-        let mut mock = MockBookRepository::new();
-        mock.expect_find_all().returning(move |opt| {
+    fixture.expect_book_use_case().returning(move || {
+        use kernel::use_case::book::MockBookUseCase;
+
+        let mut mock = MockBookUseCase::new();
+        mock.expect_show_book_list().returning(move |opt| {
             let items = vec![Book {
                 id: book_id,
                 title: "RustによるWebアプリケーション開発".to_string(),
@@ -79,9 +81,9 @@ async fn show_book_list_with_query_400(
 ) -> anyhow::Result<()> {
     let book_id = BookId::new();
 
-    fixture.expect_book_repository().returning(move || {
-        let mut mock = MockBookRepository::new();
-        mock.expect_find_all().returning(move |opt| {
+    fixture.expect_book_use_case().returning(move || {
+        let mut mock = MockBookUseCase::new();
+        mock.expect_show_book_list().returning(move |opt| {
             let items = vec![Book {
                 id: book_id,
                 title: "RustによるWebアプリケーション開発".to_string(),

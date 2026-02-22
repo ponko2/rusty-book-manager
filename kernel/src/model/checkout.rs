@@ -19,3 +19,10 @@ pub struct CheckoutBook {
     pub author: String,
     pub isbn: String,
 }
+
+#[derive(Debug)]
+pub struct CheckoutState {
+    pub book_id: BookId,
+    pub checkout_id: Option<CheckoutId>,
+    pub user_id: Option<UserId>,
+}

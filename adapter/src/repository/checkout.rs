@@ -1,13 +1,12 @@
 use crate::database::{
-    ConnectionPool,
+    ConnectionSource,
     model::checkout::{CheckoutRow, CheckoutStateRow, ReturnedCheckoutRow},
 };
 use async_trait::async_trait;
-use derive_new::new;
 use kernel::{
     model::{
         checkout::{
-            Checkout,
+            Checkout, CheckoutState,
             event::{CreateCheckout, UpdateReturned},
         },
         id::{BookId, CheckoutId, UserId},
@@ -16,85 +15,66 @@ use kernel::{
 };
 use shared::error::{AppError, AppResult};
 
-#[derive(new)]
-pub struct CheckoutRepositoryImpl {
-    db: ConnectionPool,
+pub struct CheckoutRepositoryImpl<'t, 'm> {
+    source: ConnectionSource<'t, 'm>,
+}
+
+impl<'t, 'm> CheckoutRepositoryImpl<'t, 'm> {
+    pub fn new(source: impl Into<ConnectionSource<'t, 'm>>) -> Self {
+        Self {
+            source: source.into(),
+        }
+    }
 }
 
 #[async_trait]
-impl CheckoutRepository for CheckoutRepositoryImpl {
-    async fn create(&self, event: CreateCheckout) -> AppResult<()> {
-        let mut tx = self.db.begin().await?;
-
-        self.set_transaction_serializable(&mut tx).await?;
-
-        {
-            let res = sqlx::query_as!(
-                CheckoutStateRow,
-                r#"
-                    SELECT
-                        b.book_id,
-                        c.checkout_id AS "checkout_id?: CheckoutId",
-                        NULL AS "user_id?: UserId"
-                    FROM books AS b
-                        LEFT OUTER JOIN checkouts AS c USING(book_id)
-                    WHERE book_id = $1;
-                "#,
-                event.book_id as _,
-            )
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(AppError::SpecificOperationError)?;
-
-            match res {
-                None => {
-                    return Err(AppError::EntityNotFound(format!(
-                        " 書籍（{}）が見つかりませんでした。",
-                        event.book_id
-                    )));
-                }
-                Some(CheckoutStateRow {
-                    checkout_id: Some(_),
-                    ..
-                }) => {
-                    return Err(AppError::UnprocessableEntity(format!(
-                        " 書籍（{}）に対する貸出が既に存在します。",
-                        event.book_id
-                    )));
-                }
-                _ => {}
-            }
-        }
-
-        let checkout_id = CheckoutId::new();
+impl<'t, 'm> CheckoutRepository for CheckoutRepositoryImpl<'t, 'm> {
+    async fn delete_checkout(&self, checkout_id: CheckoutId) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query!(
             r#"
-                INSERT INTO checkouts
-                (checkout_id, book_id, user_id, checked_out_at)
-                VALUES ($1, $2, $3, $4)
-                ;
+                DELETE FROM checkouts WHERE checkout_id = $1;
             "#,
             checkout_id as _,
-            event.book_id as _,
-            event.checked_out_by as _,
-            event.checked_out_at,
         )
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
 
         if res.rows_affected() < 1 {
             return Err(AppError::NoRowsAffectedError(
-                "No checkout record has been created".into(),
+                "No checkout record has been deleted".into(),
             ));
         }
-
-        tx.commit().await.map_err(AppError::TransactionError)?;
 
         Ok(())
     }
 
+    async fn find_checkout_state(&self, book_id: BookId) -> AppResult<Option<CheckoutState>> {
+        let mut conn = self.source.acquire().await?;
+        let res = sqlx::query_as!(
+            CheckoutStateRow,
+            r#"
+                SELECT
+                    b.book_id,
+                    c.checkout_id AS "checkout_id?: CheckoutId",
+                    c.user_id AS "user_id?: UserId"
+                FROM books AS b
+                    LEFT OUTER JOIN checkouts AS c USING(book_id)
+                WHERE book_id = $1;
+            "#,
+            book_id as _,
+        )
+        .fetch_optional(&mut *conn)
+        .await
+        .map_err(AppError::SpecificOperationError)?
+        .map(CheckoutState::from);
+
+        Ok(res)
+    }
+
     async fn find_history_by_book_id(&self, book_id: BookId) -> AppResult<Vec<Checkout>> {
+        let mut conn = self.source.acquire().await?;
         let checkout: Option<Checkout> = self.find_unreturned_by_book_id(book_id).await?;
         let mut checkout_histories: Vec<Checkout> = sqlx::query_as!(
             ReturnedCheckoutRow,
@@ -115,7 +95,7 @@ impl CheckoutRepository for CheckoutRepositoryImpl {
             "#,
             book_id as _,
         )
-        .fetch_all(self.db.inner_ref())
+        .fetch_all(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?
         .into_iter()
@@ -130,6 +110,7 @@ impl CheckoutRepository for CheckoutRepositoryImpl {
     }
 
     async fn find_unreturned_all(&self) -> AppResult<Vec<Checkout>> {
+        let mut conn = self.source.acquire().await?;
         sqlx::query_as!(
             CheckoutRow,
             r#"
@@ -147,13 +128,14 @@ impl CheckoutRepository for CheckoutRepositoryImpl {
                 ;
             "#,
         )
-        .fetch_all(self.db.inner_ref())
+        .fetch_all(&mut *conn)
         .await
         .map(|rows| rows.into_iter().map(Checkout::from).collect())
         .map_err(AppError::SpecificOperationError)
     }
 
     async fn find_unreturned_by_user_id(&self, user_id: UserId) -> AppResult<Vec<Checkout>> {
+        let mut conn = self.source.acquire().await?;
         sqlx::query_as!(
             CheckoutRow,
             r#"
@@ -173,56 +155,42 @@ impl CheckoutRepository for CheckoutRepositoryImpl {
             "#,
             user_id as _,
         )
-        .fetch_all(self.db.inner_ref())
+        .fetch_all(&mut *conn)
         .await
         .map(|rows| rows.into_iter().map(Checkout::from).collect())
         .map_err(AppError::SpecificOperationError)
     }
 
-    async fn update_returned(&self, event: UpdateReturned) -> AppResult<()> {
-        let mut tx = self.db.begin().await?;
+    async fn insert_checkout(&self, event: &CreateCheckout) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
+        let checkout_id = CheckoutId::new();
+        let res = sqlx::query!(
+            r#"
+                INSERT INTO checkouts
+                (checkout_id, book_id, user_id, checked_out_at)
+                VALUES ($1, $2, $3, $4)
+                ;
+            "#,
+            checkout_id as _,
+            event.book_id as _,
+            event.checked_out_by as _,
+            event.checked_out_at,
+        )
+        .execute(&mut *conn)
+        .await
+        .map_err(AppError::SpecificOperationError)?;
 
-        self.set_transaction_serializable(&mut tx).await?;
-
-        {
-            let res = sqlx::query_as!(
-                CheckoutStateRow,
-                r#"
-                    SELECT
-                        b.book_id,
-                        c.checkout_id AS "checkout_id?: CheckoutId",
-                        c.user_id AS "user_id?: UserId"
-                    FROM books AS b
-                        LEFT OUTER JOIN checkouts AS c USING(book_id)
-                    WHERE book_id = $1;
-                "#,
-                event.book_id as _,
-            )
-            .fetch_optional(&mut *tx)
-            .await
-            .map_err(AppError::SpecificOperationError)?;
-
-            match res {
-                None => {
-                    return Err(AppError::EntityNotFound(format!(
-                        " 書籍（{}）が見つかりませんでした。",
-                        event.book_id
-                    )));
-                }
-                Some(CheckoutStateRow {
-                    checkout_id: Some(c),
-                    user_id: Some(u),
-                    ..
-                }) if (c, u) != (event.checkout_id, event.returned_by) => {
-                    return Err(AppError::UnprocessableEntity(format!(
-                        " 指定の貸出（ID（{}）, ユーザー（{}）, 書籍（{}））は返却できません。",
-                        event.checkout_id, event.returned_by, event.book_id
-                    )));
-                }
-                _ => {}
-            }
+        if res.rows_affected() < 1 {
+            return Err(AppError::NoRowsAffectedError(
+                "No checkout record has been created".into(),
+            ));
         }
 
+        Ok(())
+    }
+
+    async fn insert_returned_checkout(&self, event: &UpdateReturned) -> AppResult<()> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query!(
             r#"
                 INSERT INTO returned_checkouts
@@ -235,7 +203,7 @@ impl CheckoutRepository for CheckoutRepositoryImpl {
             event.checkout_id as _,
             event.returned_at,
         )
-        .execute(&mut *tx)
+        .execute(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?;
 
@@ -245,41 +213,13 @@ impl CheckoutRepository for CheckoutRepositoryImpl {
             ));
         }
 
-        let res = sqlx::query!(
-            r#"
-                DELETE FROM checkouts WHERE checkout_id = $1;
-            "#,
-            event.checkout_id as _,
-        )
-        .execute(&mut *tx)
-        .await
-        .map_err(AppError::SpecificOperationError)?;
-
-        if res.rows_affected() < 1 {
-            return Err(AppError::NoRowsAffectedError(
-                "No checkout record has been deleted".into(),
-            ));
-        }
-
-        tx.commit().await.map_err(AppError::TransactionError)?;
-
         Ok(())
     }
 }
 
-impl CheckoutRepositoryImpl {
-    async fn set_transaction_serializable(
-        &self,
-        tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
-    ) -> AppResult<()> {
-        sqlx::query!("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
-            .execute(&mut **tx)
-            .await
-            .map_err(AppError::SpecificOperationError)?;
-        Ok(())
-    }
-
+impl<'t, 'm> CheckoutRepositoryImpl<'t, 'm> {
     async fn find_unreturned_by_book_id(&self, book_id: BookId) -> AppResult<Option<Checkout>> {
+        let mut conn = self.source.acquire().await?;
         let res = sqlx::query_as!(
             CheckoutRow,
             r#"
@@ -297,7 +237,7 @@ impl CheckoutRepositoryImpl {
             "#,
             book_id as _,
         )
-        .fetch_optional(self.db.inner_ref())
+        .fetch_optional(&mut *conn)
         .await
         .map_err(AppError::SpecificOperationError)?
         .map(Checkout::from);
@@ -308,25 +248,51 @@ impl CheckoutRepositoryImpl {
 
 #[cfg(test)]
 mod tests {
-    use chrono::Utc;
-    use kernel::model::checkout::CheckoutBook;
-
     use super::*;
-    use std::str::FromStr;
+    use crate::{database::ConnectionPool, redis::RedisClient, unit_of_work::UnitOfWorkScopeImpl};
+    use chrono::Utc;
+    use kernel::{
+        model::checkout::CheckoutBook,
+        use_case::checkout::{CheckoutUseCase, CheckoutUseCaseImpl},
+    };
+    use shared::config::RedisConfig;
+    use std::{str::FromStr, sync::Arc};
 
-    fn init_repo(pool: sqlx::PgPool) -> (CheckoutRepositoryImpl, UserId, UserId, BookId) {
-        let repo = CheckoutRepositoryImpl::new(ConnectionPool::new(pool));
+    fn init_repo(
+        pool: sqlx::PgPool,
+    ) -> (
+        CheckoutRepositoryImpl<'static, 'static>,
+        CheckoutUseCaseImpl,
+        UserId,
+        UserId,
+        BookId,
+    ) {
+        let repo = CheckoutRepositoryImpl::new(pool.clone());
+        let use_case = CheckoutUseCaseImpl::new(Arc::new(UnitOfWorkScopeImpl::new(
+            Arc::new(ConnectionPool::from(pool.clone())),
+            Arc::new(
+                RedisClient::new(&RedisConfig {
+                    host: std::env::var("REDIS_HOST").unwrap(),
+                    port: std::env::var("REDIS_PORT").unwrap().parse::<u16>().unwrap(),
+                })
+                .unwrap(),
+            ),
+            std::env::var("AUTH_TOKEN_TTL")
+                .unwrap()
+                .parse::<u64>()
+                .unwrap(),
+        )));
 
         let user_id1 = UserId::from_str("9582f9de-0fd1-4892-b20c-70139a7eb95b").unwrap();
         let user_id2 = UserId::from_str("050afe56-c3da-4448-8e4d-6f44007d2ca5").unwrap();
         let book_id1 = BookId::from_str("9890736e-a4e4-461a-a77d-eac3517ef11b").unwrap();
 
-        (repo, user_id1, user_id2, book_id1)
+        (repo, use_case, user_id1, user_id2, book_id1)
     }
 
     #[sqlx::test(fixtures("common", "checkout"))]
     async fn test_checkout_and_return(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let (repo, user_id1, user_id2, book_id1) = init_repo(pool);
+        let (repo, use_case, user_id1, user_id2, book_id1) = init_repo(pool);
 
         let res = repo.find_unreturned_by_user_id(user_id1).await?;
         assert!(res.is_empty());
@@ -336,8 +302,8 @@ mod tests {
         assert!(co.is_none());
 
         {
-            let res = repo
-                .create(CreateCheckout {
+            let res = use_case
+                .checkout_book(CreateCheckout {
                     book_id: BookId::new(),
                     checked_out_by: user_id1,
                     checked_out_at: Utc::now(),
@@ -347,20 +313,21 @@ mod tests {
         }
 
         {
-            repo.create(CreateCheckout {
-                book_id: book_id1,
-                checked_out_by: user_id1,
-                checked_out_at: Utc::now(),
-            })
-            .await?;
+            use_case
+                .checkout_book(CreateCheckout {
+                    book_id: book_id1,
+                    checked_out_by: user_id1,
+                    checked_out_at: Utc::now(),
+                })
+                .await?;
 
             let co = repo.find_unreturned_by_book_id(book_id1).await?;
             assert!(
                 matches!(co, Some(Checkout{checked_out_by,book:CheckoutBook{book_id,..},..}) if book_id == book_id1 && checked_out_by == user_id1)
             );
 
-            let res = repo
-                .create(CreateCheckout {
+            let res = use_case
+                .checkout_book(CreateCheckout {
                     book_id: book_id1,
                     checked_out_by: user_id2,
                     checked_out_at: Utc::now(),
@@ -370,8 +337,8 @@ mod tests {
 
             let co = co.unwrap();
 
-            let res = repo
-                .update_returned(UpdateReturned {
+            let res = use_case
+                .return_book(UpdateReturned {
                     checkout_id: co.id,
                     book_id: BookId::new(),
                     returned_by: user_id1,
@@ -380,8 +347,8 @@ mod tests {
                 .await;
             assert!(matches!(res, Err(AppError::EntityNotFound(_))));
 
-            let res = repo
-                .update_returned(UpdateReturned {
+            let res = use_case
+                .return_book(UpdateReturned {
                     checkout_id: CheckoutId::new(),
                     book_id: book_id1,
                     returned_by: user_id1,
@@ -390,8 +357,8 @@ mod tests {
                 .await;
             assert!(matches!(res, Err(AppError::UnprocessableEntity(_))));
 
-            let res = repo
-                .update_returned(UpdateReturned {
+            let res = use_case
+                .return_book(UpdateReturned {
                     checkout_id: co.id,
                     book_id: book_id1,
                     returned_by: user_id2,
@@ -400,13 +367,14 @@ mod tests {
                 .await;
             assert!(matches!(res, Err(AppError::UnprocessableEntity(_))));
 
-            repo.update_returned(UpdateReturned {
-                checkout_id: co.id,
-                book_id: book_id1,
-                returned_by: user_id1,
-                returned_at: Utc::now(),
-            })
-            .await?;
+            use_case
+                .return_book(UpdateReturned {
+                    checkout_id: co.id,
+                    book_id: book_id1,
+                    returned_by: user_id1,
+                    returned_at: Utc::now(),
+                })
+                .await?;
         }
 
         Ok(())
@@ -414,15 +382,16 @@ mod tests {
 
     #[sqlx::test(fixtures("common", "checkout"))]
     async fn test_checkout_list(pool: sqlx::PgPool) -> anyhow::Result<()> {
-        let (repo, user_id1, user_id2, book_id1) = init_repo(pool);
+        let (repo, use_case, user_id1, user_id2, book_id1) = init_repo(pool);
 
         {
-            repo.create(CreateCheckout {
-                book_id: book_id1,
-                checked_out_by: user_id1,
-                checked_out_at: Utc::now(),
-            })
-            .await?;
+            use_case
+                .checkout_book(CreateCheckout {
+                    book_id: book_id1,
+                    checked_out_by: user_id1,
+                    checked_out_at: Utc::now(),
+                })
+                .await?;
 
             let co = repo.find_unreturned_by_book_id(book_id1).await?.unwrap();
 
@@ -440,13 +409,14 @@ mod tests {
                 assert_eq!(res.len(), 1);
             }
 
-            repo.update_returned(UpdateReturned {
-                checkout_id: co.id,
-                book_id: book_id1,
-                returned_by: user_id1,
-                returned_at: Utc::now(),
-            })
-            .await?;
+            use_case
+                .return_book(UpdateReturned {
+                    checkout_id: co.id,
+                    book_id: book_id1,
+                    returned_by: user_id1,
+                    returned_at: Utc::now(),
+                })
+                .await?;
 
             {
                 let res = repo.find_unreturned_all().await?;
@@ -464,12 +434,13 @@ mod tests {
         }
 
         {
-            repo.create(CreateCheckout {
-                book_id: book_id1,
-                checked_out_by: user_id2,
-                checked_out_at: Utc::now(),
-            })
-            .await?;
+            use_case
+                .checkout_book(CreateCheckout {
+                    book_id: book_id1,
+                    checked_out_by: user_id2,
+                    checked_out_at: Utc::now(),
+                })
+                .await?;
 
             let co = repo.find_unreturned_by_book_id(book_id1).await?.unwrap();
 
@@ -487,13 +458,14 @@ mod tests {
                 assert_eq!(res.len(), 2);
             }
 
-            repo.update_returned(UpdateReturned {
-                checkout_id: co.id,
-                book_id: book_id1,
-                returned_by: user_id2,
-                returned_at: Utc::now(),
-            })
-            .await?;
+            use_case
+                .return_book(UpdateReturned {
+                    checkout_id: co.id,
+                    book_id: book_id1,
+                    returned_by: user_id2,
+                    returned_at: Utc::now(),
+                })
+                .await?;
 
             {
                 let res = repo.find_unreturned_all().await?;

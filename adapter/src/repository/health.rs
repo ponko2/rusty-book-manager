@@ -1,19 +1,25 @@
-use crate::database::ConnectionPool;
+use crate::database::ConnectionSource;
 use async_trait::async_trait;
-use derive_new::new;
 use kernel::repository::health::HealthCheckRepository;
 
-#[derive(new)]
-pub struct HealthCheckRepositoryImpl {
-    db: ConnectionPool,
+pub struct HealthCheckRepositoryImpl<'t, 'm> {
+    source: ConnectionSource<'t, 'm>,
+}
+
+impl<'t, 'm> HealthCheckRepositoryImpl<'t, 'm> {
+    pub fn new(source: impl Into<ConnectionSource<'t, 'm>>) -> Self {
+        Self {
+            source: source.into(),
+        }
+    }
 }
 
 #[async_trait]
-impl HealthCheckRepository for HealthCheckRepositoryImpl {
+impl<'t, 'm> HealthCheckRepository for HealthCheckRepositoryImpl<'t, 'm> {
     async fn check_db(&self) -> bool {
-        sqlx::query("SELECT 1")
-            .fetch_one(self.db.inner_ref())
-            .await
-            .is_ok()
+        let Ok(mut conn) = self.source.acquire().await else {
+            return false;
+        };
+        sqlx::query("SELECT 1").execute(&mut *conn).await.is_ok()
     }
 }

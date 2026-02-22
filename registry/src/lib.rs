@@ -1,25 +1,21 @@
-use adapter::{
-    database::ConnectionPool,
-    redis::RedisClient,
-    repository::{
-        auth::AuthRepositoryImpl, book::BookRepositoryImpl, checkout::CheckoutRepositoryImpl,
-        health::HealthCheckRepositoryImpl, user::UserRepositoryImpl,
-    },
-};
-use kernel::repository::{
-    auth::AuthRepository, book::BookRepository, checkout::CheckoutRepository,
-    health::HealthCheckRepository, user::UserRepository,
+use adapter::{database::ConnectionPool, redis::RedisClient, unit_of_work::UnitOfWorkScopeImpl};
+use kernel::use_case::{
+    auth::{AuthUseCase, AuthUseCaseImpl},
+    book::{BookUseCase, BookUseCaseImpl},
+    checkout::{CheckoutUseCase, CheckoutUseCaseImpl},
+    health::{HealthCheckUseCase, HealthCheckUseCaseImpl},
+    user::{UserUseCase, UserUseCaseImpl},
 };
 use shared::config::AppConfig;
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct AppRegistryImpl {
-    health_check_repository: Arc<dyn HealthCheckRepository>,
-    book_repository: Arc<dyn BookRepository>,
-    auth_repository: Arc<dyn AuthRepository>,
-    user_repository: Arc<dyn UserRepository>,
-    checkout_repository: Arc<dyn CheckoutRepository>,
+    health_check_use_case: Arc<dyn HealthCheckUseCase>,
+    book_use_case: Arc<dyn BookUseCase>,
+    auth_use_case: Arc<dyn AuthUseCase>,
+    user_use_case: Arc<dyn UserUseCase>,
+    checkout_use_case: Arc<dyn CheckoutUseCase>,
 }
 
 impl AppRegistryImpl {
@@ -28,74 +24,75 @@ impl AppRegistryImpl {
         redis_client: Arc<RedisClient>,
         app_config: AppConfig,
     ) -> Self {
-        let health_check_repository = Arc::new(HealthCheckRepositoryImpl::new(pool.clone()));
-        let book_repository = Arc::new(BookRepositoryImpl::new(pool.clone()));
-        let auth_repository = Arc::new(AuthRepositoryImpl::new(
-            pool.clone(),
+        let scope = Arc::new(UnitOfWorkScopeImpl::new(
+            Arc::new(pool.clone()),
             redis_client.clone(),
             app_config.auth.ttl,
         ));
-        let user_repository = Arc::new(UserRepositoryImpl::new(pool.clone()));
-        let checkout_repository = Arc::new(CheckoutRepositoryImpl::new(pool.clone()));
+        let health_check_use_case = Arc::new(HealthCheckUseCaseImpl::new(scope.clone()));
+        let book_use_case = Arc::new(BookUseCaseImpl::new(scope.clone()));
+        let auth_use_case = Arc::new(AuthUseCaseImpl::new(scope.clone()));
+        let user_use_case = Arc::new(UserUseCaseImpl::new(scope.clone()));
+        let checkout_use_case = Arc::new(CheckoutUseCaseImpl::new(scope.clone()));
 
         Self {
-            health_check_repository,
-            book_repository,
-            auth_repository,
-            user_repository,
-            checkout_repository,
+            health_check_use_case,
+            book_use_case,
+            auth_use_case,
+            user_use_case,
+            checkout_use_case,
         }
     }
 
-    pub fn health_check_repository(&self) -> Arc<dyn HealthCheckRepository> {
-        self.health_check_repository.clone()
+    pub fn health_check_use_case(&self) -> Arc<dyn HealthCheckUseCase> {
+        self.health_check_use_case.clone()
     }
 
-    pub fn book_repository(&self) -> Arc<dyn BookRepository> {
-        self.book_repository.clone()
+    pub fn book_use_case(&self) -> Arc<dyn BookUseCase> {
+        self.book_use_case.clone()
     }
 
-    pub fn auth_repository(&self) -> Arc<dyn AuthRepository> {
-        self.auth_repository.clone()
+    pub fn auth_use_case(&self) -> Arc<dyn AuthUseCase> {
+        self.auth_use_case.clone()
     }
 
-    pub fn user_repository(&self) -> Arc<dyn UserRepository> {
-        self.user_repository.clone()
+    pub fn user_use_case(&self) -> Arc<dyn UserUseCase> {
+        self.user_use_case.clone()
     }
 
-    pub fn checkout_repository(&self) -> Arc<dyn CheckoutRepository> {
-        self.checkout_repository.clone()
+    pub fn checkout_use_case(&self) -> Arc<dyn CheckoutUseCase> {
+        self.checkout_use_case.clone()
     }
 }
 
 #[mockall::automock]
 pub trait AppRegistryExt {
-    fn health_check_repository(&self) -> Arc<dyn HealthCheckRepository>;
-    fn book_repository(&self) -> Arc<dyn BookRepository>;
-    fn auth_repository(&self) -> Arc<dyn AuthRepository>;
-    fn checkout_repository(&self) -> Arc<dyn CheckoutRepository>;
-    fn user_repository(&self) -> Arc<dyn UserRepository>;
+    fn health_check_use_case(&self) -> Arc<dyn HealthCheckUseCase>;
+    fn book_use_case(&self) -> Arc<dyn BookUseCase>;
+    fn auth_use_case(&self) -> Arc<dyn AuthUseCase>;
+    fn checkout_use_case(&self) -> Arc<dyn CheckoutUseCase>;
+    fn user_use_case(&self) -> Arc<dyn UserUseCase>;
 }
 
 impl AppRegistryExt for AppRegistryImpl {
-    fn health_check_repository(&self) -> Arc<dyn HealthCheckRepository> {
-        self.health_check_repository.clone()
+    fn health_check_use_case(&self) -> Arc<dyn HealthCheckUseCase> {
+        self.health_check_use_case.clone()
     }
 
-    fn book_repository(&self) -> Arc<dyn BookRepository> {
-        self.book_repository.clone()
+    fn book_use_case(&self) -> Arc<dyn BookUseCase> {
+        self.book_use_case.clone()
     }
 
-    fn auth_repository(&self) -> Arc<dyn AuthRepository> {
-        self.auth_repository.clone()
+    fn auth_use_case(&self) -> Arc<dyn AuthUseCase> {
+        self.auth_use_case.clone()
     }
 
-    fn user_repository(&self) -> Arc<dyn UserRepository> {
-        self.user_repository.clone()
+    fn user_use_case(&self) -> Arc<dyn UserUseCase> {
+        self.user_use_case.clone()
     }
 
-    fn checkout_repository(&self) -> Arc<dyn CheckoutRepository> {
-        self.checkout_repository.clone()
+    fn checkout_use_case(&self) -> Arc<dyn CheckoutUseCase> {
+        self.checkout_use_case.clone()
     }
 }
 
