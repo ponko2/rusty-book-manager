@@ -43,8 +43,8 @@ pub async fn checkout_book(
     };
 
     registry
-        .checkout_repository()
-        .create(create_checkout_history)
+        .checkout_use_case()
+        .checkout_book(create_checkout_history)
         .await
         .map(|_| StatusCode::CREATED)
 }
@@ -83,8 +83,8 @@ pub async fn return_book(
     };
 
     registry
-        .checkout_repository()
-        .update_returned(update_returned)
+        .checkout_use_case()
+        .return_book(update_returned)
         .await
         .map(|_| StatusCode::OK)
 }
@@ -108,8 +108,8 @@ pub async fn show_checked_out_list(
     State(registry): State<AppRegistry>,
 ) -> AppResult<Json<CheckoutsResponse>> {
     registry
-        .checkout_repository()
-        .find_unreturned_all()
+        .checkout_use_case()
+        .show_checked_out_list()
         .await
         .map(CheckoutsResponse::from)
         .map(Json)
@@ -138,8 +138,8 @@ pub async fn checkout_history(
     State(registry): State<AppRegistry>,
 ) -> AppResult<Json<CheckoutsResponse>> {
     registry
-        .checkout_repository()
-        .find_history_by_book_id(book_id)
+        .checkout_use_case()
+        .checkout_history(book_id)
         .await
         .map(CheckoutsResponse::from)
         .map(Json)

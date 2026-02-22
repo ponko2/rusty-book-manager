@@ -1,12 +1,8 @@
 use crate::{
-    database::{
-        ConnectionPool,
-        model::auth::{AuthorizationKey, AuthorizedUserId, UserItem, from},
-    },
+    database::model::auth::{AuthorizationKey, AuthorizedUserId, from},
     redis::RedisClient,
 };
 use async_trait::async_trait;
-use derive_new::new;
 use kernel::{
     model::{
         auth::{AccessToken, event::CreateToken},
@@ -14,14 +10,18 @@ use kernel::{
     },
     repository::auth::AuthRepository,
 };
-use shared::error::{AppError, AppResult};
+use shared::error::AppResult;
 use std::sync::Arc;
 
-#[derive(new)]
 pub struct AuthRepositoryImpl {
-    db: ConnectionPool,
     kv: Arc<RedisClient>,
     ttl: u64,
+}
+
+impl AuthRepositoryImpl {
+    pub fn new(kv: Arc<RedisClient>, ttl: u64) -> Self {
+        Self { kv, ttl }
+    }
 }
 
 #[async_trait]
@@ -46,24 +46,5 @@ impl AuthRepository for AuthRepositoryImpl {
             .get(&key)
             .await
             .map(|x| x.map(AuthorizedUserId::into_inner))
-    }
-
-    async fn verify_user(&self, email: &str, password: &str) -> AppResult<UserId> {
-        let user_item = sqlx::query_as!(
-            UserItem,
-            r#"
-                SELECT user_id, password_hash FROM users
-                WHERE email = $1;
-            "#,
-            email,
-        )
-        .fetch_one(self.db.inner_ref())
-        .await
-        .map_err(AppError::SpecificOperationError)?;
-        let valid = bcrypt::verify(password, &user_item.password_hash)?;
-        if !valid {
-            return Err(AppError::UnauthenticatedError);
-        }
-        Ok(user_item.user_id)
     }
 }

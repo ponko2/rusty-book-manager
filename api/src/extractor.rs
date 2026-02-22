@@ -35,17 +35,10 @@ impl FromRequestParts<AppRegistry> for AuthorizedUser {
             .map_err(|_| AppError::UnauthorizedError)?;
         let access_token = AccessToken(bearer.token().to_string());
 
-        let user_id = registry
-            .auth_repository()
-            .fetch_user_id_from_token(&access_token)
-            .await?
-            .ok_or(AppError::UnauthenticatedError)?;
-
         let user = registry
-            .user_repository()
-            .find_current_user(user_id)
-            .await?
-            .ok_or(AppError::UnauthenticatedError)?;
+            .auth_use_case()
+            .find_authorized_user(&access_token)
+            .await?;
 
         Ok(Self { access_token, user })
     }

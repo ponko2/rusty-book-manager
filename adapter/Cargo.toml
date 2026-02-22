@@ -9,11 +9,11 @@ publish.workspace = true
 async-trait.workspace = true
 bcrypt.workspace = true
 chrono.workspace = true
-derive-new.workspace = true
 kernel.workspace = true
 redis.workspace = true
 shared.workspace = true
 sqlx.workspace = true
+tokio.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true

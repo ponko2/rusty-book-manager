@@ -41,8 +41,8 @@ pub async fn register_book(
     req.validate(&())?;
 
     registry
-        .book_repository()
-        .create(req.into(), user.id())
+        .book_use_case()
+        .register_book(req.into(), user.id())
         .await
         .map(|_| StatusCode::CREATED)
 }
@@ -77,8 +77,8 @@ pub async fn show_book_list(
     query.validate(&())?;
 
     registry
-        .book_repository()
-        .find_all(query.into())
+        .book_use_case()
+        .show_book_list(query.into())
         .await
         .map(PaginatedBookResponse::from)
         .map(Json)
@@ -114,8 +114,8 @@ pub async fn show_book(
 ) -> AppResult<Json<BookResponse>> {
     tracing::info!("ここにログを追加した");
     registry
-        .book_repository()
-        .find_by_id(book_id)
+        .book_use_case()
+        .show_book(book_id)
         .await
         .and_then(|bc| match bc {
             Some(bc) => Ok(Json(bc.into())),
@@ -155,8 +155,8 @@ pub async fn update_book(
 
     let update_book = UpdateBookRequestWithIds::new(book_id, user.id(), req);
     registry
-        .book_repository()
-        .update(update_book.into())
+        .book_use_case()
+        .update_book(update_book.into())
         .await
         .map(|_| StatusCode::OK)
 }
@@ -190,8 +190,8 @@ pub async fn delete_book(
         requested_user: user.id(),
     };
     registry
-        .book_repository()
-        .delete(delete_book)
+        .book_use_case()
+        .delete_book(delete_book)
         .await
         .map(|_| StatusCode::OK)
 }

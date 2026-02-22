@@ -14,5 +14,4 @@ pub trait AuthRepository: Send + Sync {
         &self,
         access_token: &AccessToken,
     ) -> AppResult<Option<UserId>>;
-    async fn verify_user(&self, email: &str, password: &str) -> AppResult<UserId>;
 }
