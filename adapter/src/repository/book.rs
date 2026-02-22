@@ -38,10 +38,10 @@ impl<'t, 'm> BookRepository for BookRepositoryImpl<'t, 'm> {
                 INSERT INTO books (title, author, isbn, description, user_id)
                 VALUES ($1, $2, $3, $4, $5)
             "#,
-            event.title,
-            event.author,
-            event.isbn,
-            event.description,
+            event.title.as_ref(),
+            event.author.as_ref(),
+            event.isbn.as_ref(),
+            event.description.as_ref(),
             user_id as _
         )
         .execute(&mut *conn)
@@ -124,9 +124,9 @@ impl<'t, 'm> BookRepository for BookRepositoryImpl<'t, 'm> {
             .into_iter()
             .map(|row| {
                 let checkout = checkouts.remove(&row.book_id);
-                row.into_book(checkout)
+                row.try_into_book(checkout)
             })
-            .collect();
+            .collect::<AppResult<_>>()?;
 
         Ok(PaginatedList {
             total,
@@ -162,7 +162,7 @@ impl<'t, 'm> BookRepository for BookRepositoryImpl<'t, 'm> {
         match row {
             Some(r) => {
                 let checkout = self.find_checkouts(&[r.book_id]).await?.remove(&r.book_id);
-                Ok(Some(r.into_book(checkout)))
+                Ok(Some(r.try_into_book(checkout)?))
             }
             None => Ok(None),
         }
@@ -181,10 +181,10 @@ impl<'t, 'm> BookRepository for BookRepositoryImpl<'t, 'm> {
                 WHERE book_id = $5
                 AND user_id = $6
             "#,
-            event.title,
-            event.author,
-            event.isbn,
-            event.description,
+            event.title.as_ref(),
+            event.author.as_ref(),
+            event.isbn.as_ref(),
+            event.description.as_ref(),
             event.book_id as _,
             event.requested_user as _
         )
@@ -222,8 +222,8 @@ impl<'t, 'm> BookRepositoryImpl<'t, 'm> {
         .await
         .map_err(AppError::SpecificOperationError)?
         .into_iter()
-        .map(|checkout| (checkout.book_id, Checkout::from(checkout)))
-        .collect();
+        .map(|checkout| Ok((checkout.book_id, Checkout::try_from(checkout)?)))
+        .collect::<AppResult<_>>()?;
 
         Ok(res)
     }
@@ -241,9 +241,13 @@ mod tests {
     use chrono::Utc;
     use kernel::{
         model::{
+            book::{
+                Book, BookListOptions,
+                event::{CreateBook, UpdateBook},
+            },
             checkout::event::{CreateCheckout, UpdateReturned},
-            id::UserId,
-            user::event::CreateUser,
+            id::{BookId, UserId},
+            user::{BookOwner, event::CreateUser},
         },
         repository::user::UserRepository,
         use_case::checkout::{CheckoutUseCase, CheckoutUseCaseImpl},
@@ -260,19 +264,19 @@ mod tests {
         let repo = BookRepositoryImpl::new(source.clone());
         let user = user_repo
             .create(CreateUser {
-                name: "Test User".into(),
-                email: "test@example.com".into(),
+                name: "Test User".parse().unwrap(),
+                email: "test@example.com".parse().unwrap(),
                 password: "test_password".into(),
             })
             .await?;
         let book = CreateBook {
-            title: "Test Title".into(),
-            author: "Test Author".into(),
-            isbn: "Test ISBN".into(),
-            description: "Test Description".into(),
+            title: "Test Title".parse().unwrap(),
+            author: "Test Author".parse().unwrap(),
+            isbn: "Test ISBN".parse().unwrap(),
+            description: "Test Description".parse().unwrap(),
         };
 
-        repo.create(book, user.id).await?;
+        repo.create(book, user.id()).await?;
         let options = BookListOptions {
             limit: 20,
             offset: 0,
@@ -280,25 +284,21 @@ mod tests {
         let res = repo.find_all(options).await?;
         assert_eq!(res.items.len(), 1);
 
-        let book_id = res.items[0].id;
+        let book_id = res.items[0].id();
         let res = repo.find_by_id(book_id).await?;
         assert!(res.is_some());
-
-        let Book {
-            id,
-            title,
-            author,
-            isbn,
-            description,
-            owner,
-            ..
-        } = res.unwrap();
-        assert_eq!(id, book_id);
-        assert_eq!(title, "Test Title");
-        assert_eq!(author, "Test Author");
-        assert_eq!(isbn, "Test ISBN");
-        assert_eq!(description, "Test Description");
-        assert_eq!(owner.name, "Test User");
+        assert_eq!(
+            res,
+            Some(Book::new(
+                book_id,
+                "Test Title".parse()?,
+                "Test Author".parse()?,
+                "Test ISBN".parse()?,
+                "Test Description".parse()?,
+                BookOwner::new(user.id(), "Test User".parse()?),
+                None,
+            ))
+        );
 
         Ok(())
     }
@@ -309,20 +309,20 @@ mod tests {
         let book_id = BookId::from_str("9890736e-a4e4-461a-a77d-eac3517ef11b").unwrap();
         let book = repo.find_by_id(book_id).await?.unwrap();
         const NEW_AUTHOR: &str = "更新後の著者名";
-        assert_ne!(book.author, NEW_AUTHOR);
+        assert_ne!(book.author().as_ref(), NEW_AUTHOR);
 
         let update_book = UpdateBook {
-            book_id: book.id,
-            title: book.title,
-            author: NEW_AUTHOR.into(),
-            isbn: book.isbn,
-            description: book.description,
+            book_id: book.id(),
+            title: book.title().clone(),
+            author: NEW_AUTHOR.parse().unwrap(),
+            isbn: book.isbn().clone(),
+            description: book.description().clone(),
             requested_user: UserId::from_str("5b4c96ac-316a-4bee-8e69-cac5eb84ff4c").unwrap(),
         };
         repo.update(update_book).await.unwrap();
 
         let book = repo.find_by_id(book_id).await?.unwrap();
-        assert_eq!(book.author, NEW_AUTHOR);
+        assert_eq!(book.author().as_ref(), NEW_AUTHOR);
 
         Ok(())
     }
@@ -359,7 +359,7 @@ mod tests {
         assert_eq!(res.total, LEN);
         assert_eq!(res.limit, 10);
         assert_eq!(res.offset, 0);
-        assert_eq!(res.items[0].title, "title050");
+        assert_eq!(res.items[0].title().as_ref(), "title050");
 
         let res = repo
             .find_all(BookListOptions {
@@ -370,7 +370,7 @@ mod tests {
         assert_eq!(res.total, LEN);
         assert_eq!(res.limit, 10);
         assert_eq!(res.offset, 10);
-        assert_eq!(res.items[0].title, "title040");
+        assert_eq!(res.items[0].title().as_ref(), "title040");
 
         let res = repo
             .find_all(BookListOptions {
@@ -411,60 +411,60 @@ mod tests {
             .pop()
             .unwrap();
 
-        assert!(book.checkout.is_none());
+        assert!(book.checkout().is_none());
 
         {
             checkout_use_case
                 .checkout_book(CreateCheckout {
-                    book_id: book.id,
+                    book_id: book.id(),
                     checked_out_by: user_id1,
                     checked_out_at: Utc::now(),
                 })
                 .await?;
 
-            let book_co = book_repo.find_by_id(book.id).await?.unwrap();
-            assert!(book_co.checkout.is_some());
-            let co = book_co.checkout.unwrap();
-            assert_eq!(co.checked_out_by.id, user_id1);
+            let book_co = book_repo.find_by_id(book.id()).await?.unwrap();
+            assert!(book_co.checkout().is_some());
+            let co = book_co.checkout().unwrap();
+            assert_eq!(co.checked_out_by().id(), user_id1);
 
             checkout_use_case
                 .return_book(UpdateReturned {
-                    checkout_id: co.checkout_id,
-                    book_id: book_co.id,
+                    checkout_id: co.id(),
+                    book_id: book_co.id(),
                     returned_by: user_id1,
                     returned_at: Utc::now(),
                 })
                 .await?;
 
-            let book_re = book_repo.find_by_id(book.id).await?.unwrap();
-            assert!(book_re.checkout.is_none());
+            let book_re = book_repo.find_by_id(book.id()).await?.unwrap();
+            assert!(book_re.checkout().is_none());
         }
 
         {
             checkout_use_case
                 .checkout_book(CreateCheckout {
-                    book_id: book.id,
+                    book_id: book.id(),
                     checked_out_by: user_id2,
                     checked_out_at: Utc::now(),
                 })
                 .await?;
 
-            let book_co = book_repo.find_by_id(book.id).await?.unwrap();
-            assert!(book_co.checkout.is_some());
-            let co = book_co.checkout.unwrap();
-            assert_eq!(co.checked_out_by.id, user_id2);
+            let book_co = book_repo.find_by_id(book.id()).await?.unwrap();
+            assert!(book_co.checkout().is_some());
+            let co = book_co.checkout().unwrap();
+            assert_eq!(co.checked_out_by().id(), user_id2);
 
             checkout_use_case
                 .return_book(UpdateReturned {
-                    checkout_id: co.checkout_id,
-                    book_id: book_co.id,
+                    checkout_id: co.id(),
+                    book_id: book_co.id(),
                     returned_by: user_id2,
                     returned_at: Utc::now(),
                 })
                 .await?;
 
-            let book_re = book_repo.find_by_id(book.id).await?.unwrap();
-            assert!(book_re.checkout.is_none());
+            let book_re = book_repo.find_by_id(book.id()).await?.unwrap();
+            assert!(book_re.checkout().is_none());
         }
 
         Ok(())

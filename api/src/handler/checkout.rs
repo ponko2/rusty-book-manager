@@ -28,7 +28,7 @@ use shared::error::AppResult;
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn checkout_book(
@@ -67,7 +67,7 @@ pub async fn checkout_book(
 #[tracing::instrument(
     skip(user, registry),
     fields(
-        user_id = %user.user.id.to_string()
+        user_id = %user.id().to_string()
     )
 )]
 pub async fn return_book(
@@ -100,7 +100,7 @@ pub async fn return_book(
 #[tracing::instrument(
     skip(_user, registry),
     fields(
-        user_id = %_user.user.id.to_string()
+        user_id = %_user.id().to_string()
     )
 )]
 pub async fn show_checked_out_list(
@@ -129,7 +129,7 @@ pub async fn show_checked_out_list(
 #[tracing::instrument(
     skip(_user, registry),
     fields(
-        user_id = %_user.user.id.to_string()
+        user_id = %_user.id().to_string()
     )
 )]
 pub async fn checkout_history(
