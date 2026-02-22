@@ -6,11 +6,6 @@ use kernel::model::{
 use shared::error::AppError;
 use std::str::FromStr;
 
-pub struct UserItem {
-    pub user_id: UserId,
-    pub password_hash: String,
-}
-
 pub struct AuthorizationKey(String);
 pub struct AuthorizedUserId(UserId);
 

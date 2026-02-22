@@ -15,6 +15,8 @@ pub trait UserRepository: Send + Sync {
     async fn delete(&self, event: DeleteUser) -> AppResult<()>;
     async fn find_all(&self) -> AppResult<Vec<User>>;
     async fn find_current_user(&self, current_user_id: UserId) -> AppResult<Option<User>>;
+    async fn find_password_hash_by_email(&self, email: &str) -> AppResult<(UserId, String)>;
+    async fn find_password_hash_by_user_id(&self, user_id: UserId) -> AppResult<String>;
     async fn update_password(&self, event: UpdateUserPassword) -> AppResult<()>;
     async fn update_role(&self, event: UpdateUserRole) -> AppResult<()>;
 }

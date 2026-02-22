@@ -3,6 +3,11 @@ use shared::error::AppError;
 use sqlx::types::chrono::{DateTime, Utc};
 use std::str::FromStr;
 
+pub struct UserItem {
+    pub user_id: UserId,
+    pub password_hash: String,
+}
+
 pub struct UserRow {
     pub user_id: UserId,
     pub name: String,
